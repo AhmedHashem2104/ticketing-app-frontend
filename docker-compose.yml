@@ -1,0 +1,28 @@
+# Runs the production images of the web app and the mock API together.
+#   docker compose up --build   →  http://localhost:3000
+services:
+  mock-api:
+    build:
+      context: .
+      dockerfile: apps/mock-api/Dockerfile
+    environment:
+      PORT: "4000"
+      CORS_ORIGIN: http://localhost:3000
+      ENABLE_TEST_ROUTES: "false"
+    ports:
+      - "4000:4000"
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/matchpass-web/Dockerfile
+    environment:
+      API_ORIGIN: http://mock-api:4000
+    ports:
+      - "3000:3000"
+    volumes:
+      # Edit feature flags without rebuilding the image.
+      - ./apps/matchpass-web/config:/app/apps/matchpass-web/config:ro
+    depends_on:
+      mock-api:
+        condition: service_healthy

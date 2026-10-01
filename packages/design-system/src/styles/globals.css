@@ -1,0 +1,152 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* Self-hosted fonts — no runtime dependency on a font CDN. */
+@import "@fontsource/barlow-condensed/600.css";
+@import "@fontsource/barlow-condensed/700.css";
+@import "@fontsource/barlow-condensed/800.css";
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/500.css";
+@import "@fontsource/ibm-plex-sans/600.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+@import "@fontsource/ibm-plex-mono/600.css";
+@import "@fontsource/unbounded/800.css";
+@import "@fontsource/unbounded/900.css";
+
+/* Let apps that import this stylesheet pick up the utility classes used by the components. */
+@source "../";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Matchpass design tokens.
+ * shadcn/ui semantic variables are mapped onto the brand palette so generated
+ * primitives (button, checkbox, tabs…) inherit the Matchpass look.
+ */
+:root {
+  --radius: 0.5rem;
+  --background: #f3f1ea;
+  --foreground: #121512;
+  --card: #ffffff;
+  --card-foreground: #121512;
+  --popover: #ffffff;
+  --popover-foreground: #121512;
+  --primary: #0e4d2f;
+  --primary-foreground: #ffffff;
+  --secondary: #e7e4da;
+  --secondary-foreground: #3a3f39;
+  --muted: #e7e4da;
+  --muted-foreground: #4a4f49;
+  --accent: #d5e6da;
+  --accent-foreground: #0e4d2f;
+  --destructive: #8e1b1b;
+  --destructive-foreground: #ffffff;
+  --border: #d6d2c6;
+  --input: #d6d2c6;
+  --ring: #0e4d2f;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@theme {
+  /* Brand */
+  --color-pitch: #0e4d2f;
+  --color-forest: #2f6b4c;
+  --color-mint: #d5e6da;
+  --color-gold: #f2b705;
+  --color-ink: #121512;
+  --color-ink-soft: #1c1f1c;
+  --color-paper: #f3f1ea;
+  --color-sand: #e7e4da;
+  --color-line: #d6d2c6;
+  --color-line-strong: #b9b5a9;
+  --color-sub: #3a3f39;
+  --color-muted-ink: #4a4f49;
+  --color-smoke: #6b6f69;
+  --color-stone: #8c8f88;
+  --color-ash: #cfcdc4;
+  --color-chalk: #e4e2da;
+
+  /* Shows & events */
+  --color-plum: #3b1f6b;
+  --color-violet: #5a3a8c;
+  --color-iris: #6b4fa0;
+  --color-orchid: #8a70bd;
+  --color-lavender: #b9a7da;
+  --color-lilac: #dcd2ee;
+  --color-mist: #e4dcf2;
+  --color-lime: #8dc63f;
+  --color-lime-ink: #4f7a12;
+  --color-lime-deep: #2a3a10;
+
+  /* Status */
+  --color-amber-soft: #fce8a6;
+  --color-amber-ink: #5c4300;
+  --color-warn: #8a4b00;
+  --color-peach: #f2c29b;
+  --color-peach-ink: #5a2500;
+  --color-rose-soft: #f7dada;
+  --color-rose-ink: #8e1b1b;
+  --color-access: #1f4e8c;
+
+  /* Type */
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Barlow Condensed", "Arial Narrow", ui-sans-serif, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-ticket: "Unbounded", "Barlow Condensed", ui-sans-serif, sans-serif;
+
+  --container-page: 1280px;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-background font-sans text-foreground antialiased;
+  }
+  :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+    outline: 3px solid var(--color-gold);
+    outline-offset: 2px;
+  }
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  summary {
+    cursor: pointer;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

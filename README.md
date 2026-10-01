@@ -1,159 +1,84 @@
-# Turborepo starter
+# Matchpass — ticketing app monorepo
 
-This Turborepo starter is maintained by the Turborepo core team.
+Official tickets for football matches, concerts, festivals, comedy, classical music and cinema.
+A Turborepo + pnpm monorepo with a Next.js app, an atomic design system, shared API contracts and a mocked Express API.
+End-to-end tests live in the sibling repository [`../ticketing-app-e2e`](../ticketing-app-e2e).
 
-## Using this example
+## Workspace
 
-Run the following command:
+| Path                         | Package                   | What it is                                                                                                 |
+| ---------------------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `apps/matchpass-web`         | `matchpass-web`           | Next.js 16 app (App Router) — TanStack Query + axios, react-hook-form + zod, runtime feature flags         |
+| `apps/mock-api`              | `mock-api`                | Express 5 + TypeScript mock of the Matchpass API — in-memory, seeded, fully validated and tested           |
+| `apps/ui-showcase`           | `ui-showcase`             | Vite app hosting **Storybook** for the design system (stories, autodocs, a11y addon, story tests)          |
+| `packages/design-system`     | `@repo/design-system`     | Atomic design system (atoms → molecules → organisms → templates → pages) on Tailwind CSS v4 + shadcn/ui    |
+| `packages/contracts`         | `@repo/contracts`         | zod schemas + types shared by the API, the app and the design system (domain, requests, forms, formatting) |
+| `packages/typescript-config` | `@repo/typescript-config` | Shared tsconfig presets                                                                                    |
 
-```sh
-npx create-turbo@latest
-```
+> `apps/web`, `apps/docs`, `packages/ui` and `packages/eslint-config` are the untouched `create-turbo` starter and can be deleted.
 
-## What's inside?
+## Getting started
 
-This Turborepo includes the following packages/apps:
-
-### Apps and Packages
-
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `@next/eslint-plugin-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
-
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
-
-### Utilities
-
-This Turborepo has some additional tools already setup for you:
-
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
-
-### Build
-
-To build all apps and packages, run the following command:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
+Requirements: Node 24 (`.nvmrc`) and pnpm 11.
 
 ```sh
-cd my-turborepo
-turbo build
+pnpm install
+pnpm dev                # web on http://localhost:3000, mock API on http://localhost:4000/api
+pnpm dev:showcase       # Storybook on http://localhost:6006
 ```
 
-Without global `turbo`, use your package manager:
+Demo account (seeded with tickets, an approved Fan ID and linked fans):
 
-```sh
-cd my-turborepo
-npx turbo build
-pnpm exec turbo build
-pnpm exec turbo build
+| Mobile         | Password       | SMS code (all sign-ups) |
+| -------------- | -------------- | ----------------------- |
+| `10 1234 5482` | `matchpass123` | `123456`                |
+
+Test cards: `4242 4242 4242 4242` succeeds, `4000 0000 0000 0002` is declined. Promo codes: `MATCHPASS10`, `WELCOME50`. Presale code: `LAYLA24`.
+
+## Scripts
+
+| Command                     | Does                                                             |
+| --------------------------- | ---------------------------------------------------------------- |
+| `pnpm verify`               | lint + type-check + unit tests + build for every package (Turbo) |
+| `pnpm test`                 | all unit/integration tests                                       |
+| `pnpm test:coverage`        | tests with V8 coverage                                           |
+| `pnpm build` / `pnpm start` | production build / run web + mock API                            |
+| `pnpm format`               | Prettier                                                         |
+
+## Architecture
+
+```
+browser ──► Next.js (matchpass-web) ──/api/* proxy──► API_ORIGIN (mock-api locally)
+              │  TanStack Query + axios, every response validated by @repo/contracts
+              └─ renders @repo/design-system pages (pure, prop-driven, zod-validated props)
 ```
 
-You can build a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
+- **Design system.** shadcn/ui primitives (generated with the shadcn CLI) restyled with Matchpass tokens, composed into atoms, molecules, organisms, templates and full **pages**. Every component validates its props with zod (throws `PropValidationError` in dev/test) and is fully controlled; forms use react-hook-form with the shared zod schemas. Each component has unit + axe accessibility tests, and every Storybook story is rendered and axe-checked in CI.
+- **Data.** Client components fetch with TanStack Query through a typed axios layer (`lib/api`). Responses are parsed with the contract schemas, so API drift fails loudly. The browser only calls same-origin `/api/*`; a route handler proxies to `API_ORIGIN`, read at request time.
+- **Auth.** Bearer token in `localStorage`, exposed through a `useSyncExternalStore` session store; `RequireAuth` redirects to `/login?next=…` (same-site paths only).
+- **Feature flags.** `apps/matchpass-web/config/feature-flags.json` (validated by a strict zod schema + JSON schema for editors) is read **at request time** and cached by file mtime — flip a flag by editing the file, no rebuild. Disabled features disappear from navigation/CTAs and their routes return 404.
 
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
+| Flag                 | Controls                                          |
+| -------------------- | ------------------------------------------------- |
+| `waitingRoom`        | Virtual queue before high-demand match sales      |
+| `exactSeatSelection` | Picking exact stadium seats by block              |
+| `cinema`             | Cinema showtimes, booking and nav link            |
+| `resale`             | Official resale page, nav link and Resell buttons |
+| `refunds`            | Refund requests and tracking                      |
+| `ticketTransfer`     | Transferring tickets                              |
+| `fanId`              | Fan ID onboarding and calls to action             |
+| `promoCodes`         | Promo codes at checkout and presale codes         |
+| `notifyMe`           | "Notify me" / "Set reminder"                      |
+| `parkingUpsell`      | Parking offer on match confirmations              |
+| `addToWallet`        | Wallet passes (off)                               |
+| `arabicLanguage`     | RTL language toggle (off)                         |
 
-```sh
-turbo build --filter=docs
-```
+## Mock API
 
-Without global `turbo`:
+`apps/mock-api` implements the full contract: catalog and filters, seat maps (stadium blocks, arena ticket types, concert hall, cinema showtimes), waiting room simulation, holds with 10-minute expiry, promo codes, orders (card, wallet, InstaPay, Fawry), tickets and transfers, resale listings, refunds and Fan ID verification. Every request body/query is validated with the shared zod schemas and errors use one shape: `{ error: { code, message, details } }`. `POST /api/__test__/reset` re-seeds state (disabled in production unless `ENABLE_TEST_ROUTES=true`). Configuration lives in `apps/mock-api/.env.example`.
 
-```sh
-npx turbo build --filter=docs
-pnpm exec turbo build --filter=docs
-pnpm exec turbo build --filter=docs
-```
+## Production
 
-### Develop
-
-To develop all apps and packages, run the following command:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
-
-```sh
-cd my-turborepo
-turbo dev
-```
-
-Without global `turbo`, use your package manager:
-
-```sh
-cd my-turborepo
-npx turbo dev
-pnpm exec turbo dev
-pnpm exec turbo dev
-```
-
-You can develop a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
-
-```sh
-turbo dev --filter=web
-```
-
-Without global `turbo`:
-
-```sh
-npx turbo dev --filter=web
-pnpm exec turbo dev --filter=web
-pnpm exec turbo dev --filter=web
-```
-
-### Remote Caching
-
-> [!TIP]
-> Vercel Remote Cache is free for all plans. Get started today at [vercel.com](https://vercel.com/signup?utm_source=remote-cache-sdk&utm_campaign=free_remote_cache).
-
-Turborepo can use a technique known as [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
-
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup?utm_source=turborepo-examples), then enter the following commands:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
-
-```sh
-cd my-turborepo
-turbo login
-```
-
-Without global `turbo`, use your package manager:
-
-```sh
-cd my-turborepo
-npx turbo login
-pnpm exec turbo login
-pnpm exec turbo login
-```
-
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
-
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
-
-```sh
-turbo link
-```
-
-Without global `turbo`:
-
-```sh
-npx turbo link
-pnpm exec turbo link
-pnpm exec turbo link
-```
-
-## Useful Links
-
-Learn more about the power of Turborepo:
-
-- [Tasks](https://turborepo.dev/docs/crafting-your-repository/running-tasks)
-- [Caching](https://turborepo.dev/docs/crafting-your-repository/caching)
-- [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching)
-- [Filtering](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters)
-- [Configuration Options](https://turborepo.dev/docs/reference/configuration)
-- [CLI Usage](https://turborepo.dev/docs/reference/command-line-reference)
+- `docker compose up --build` runs both services from their multi-stage images (`apps/*/Dockerfile`, using `turbo prune`). The web image uses Next's standalone output (`NEXT_OUTPUT=standalone`).
+- Security headers (HSTS, frame denial, nosniff, referrer and permissions policies) are set in `next.config.ts`; the API uses helmet, CORS allow-listing and a body size limit.
+- CI: `.github/workflows/ci.yml` runs formatting, lint, type-check, tests and build.

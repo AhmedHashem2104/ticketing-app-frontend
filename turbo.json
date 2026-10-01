@@ -5,7 +5,8 @@
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**"]
+      "env": ["NEXT_OUTPUT"],
+      "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**", "dist/**", "storybook-static/**"]
     },
     "lint": {
       "dependsOn": ["^lint"]
@@ -13,9 +14,40 @@
     "check-types": {
       "dependsOn": ["^check-types"]
     },
+    "test": {
+      "dependsOn": ["^check-types"],
+      "outputs": []
+    },
+    "test:coverage": {
+      "outputs": ["coverage/**"]
+    },
     "dev": {
       "cache": false,
-      "persistent": true
+      "persistent": true,
+      "passThroughEnv": [
+        "API_ORIGIN",
+        "PORT",
+        "CORS_ORIGIN",
+        "QUEUE_TIME_SCALE",
+        "HOLD_MINUTES",
+        "ENABLE_TEST_ROUTES",
+        "FEATURE_FLAGS_FILE"
+      ]
+    },
+    "start": {
+      "dependsOn": ["build"],
+      "cache": false,
+      "persistent": true,
+      "passThroughEnv": [
+        "API_ORIGIN",
+        "PORT",
+        "CORS_ORIGIN",
+        "QUEUE_TIME_SCALE",
+        "HOLD_MINUTES",
+        "ENABLE_TEST_ROUTES",
+        "FEATURE_FLAGS_FILE",
+        "NODE_ENV"
+      ]
     }
   }
 }

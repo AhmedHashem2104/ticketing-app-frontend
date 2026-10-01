@@ -1,0 +1,32 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Introduction" />
+
+# Matchpass design system
+
+The UI kit behind the Matchpass ticketing app, organised with **atomic design**:
+
+| Level         | What lives here                                                                 | Examples                                           |
+| ------------- | ------------------------------------------------------------------------------- | -------------------------------------------------- |
+| **Atoms**     | Smallest building blocks, mostly shadcn/ui primitives restyled with our tokens | Button, Input, Seat, Badge, QRCode                 |
+| **Molecules** | Small groups of atoms with one job                                              | Field, OtpInput, HoldTimer, EventCard, Notice      |
+| **Organisms** | Self-contained sections of a screen                                             | SiteHeader, ZonePicker, SeatMap, CheckoutForm      |
+| **Templates** | Page skeletons with slots                                                       | SiteLayout, TwoColumn, SplitLayout                 |
+| **Pages**     | Full screens from the design, driven entirely by props                          | HomePage, CheckoutPage, MyTicketsPage, FanIdPage   |
+
+## Principles
+
+- **Tailwind CSS v4 + shadcn/ui.** Brand tokens (`pitch`, `gold`, `ink`, `paper`, `plum`…) are defined once in `styles.css`; shadcn's semantic variables map onto them.
+- **Fully managed.** Interactive components are controlled — the parent owns `value` and handles `on…Change`. Forms are managed with **react-hook-form** and validated by the shared **zod** schemas in `@repo/contracts`.
+- **Validated props.** Every component declares a zod schema for its props. Invalid props throw a `PropValidationError` in development and tests (skipped in production builds).
+- **Accessible by default.** 44px touch targets, visible focus rings, real landmarks and labels, roving keyboard focus in seat maps. Every story is checked with axe — see the **Accessibility** panel.
+
+## Using it in an app
+
+```tsx
+import "@repo/design-system/styles.css";
+import { UIProvider, HomePage } from "@repo/design-system";
+import NextLink from "next/link";
+
+<UIProvider linkComponent={NextLink}>{/* … */}</UIProvider>;
+```

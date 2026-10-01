@@ -1,0 +1,10 @@
+{
+  "extends": "@repo/typescript-config/bundler-library.json",
+  "compilerOptions": {
+    "types": ["vitest/globals", "@testing-library/jest-dom/vitest"],
+    "paths": {
+      "@repo/design-system/*": ["./src/*"]
+    }
+  },
+  "include": ["src", "test", "vitest.config.ts"]
+}

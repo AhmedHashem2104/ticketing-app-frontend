@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Matchpass feature flags",
+  "type": "object",
+  "required": ["flags"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "flags": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "waitingRoom",
+        "exactSeatSelection",
+        "cinema",
+        "resale",
+        "refunds",
+        "ticketTransfer",
+        "fanId",
+        "promoCodes",
+        "notifyMe",
+        "parkingUpsell",
+        "addToWallet",
+        "arabicLanguage"
+      ],
+      "patternProperties": {
+        "^[a-zA-Z]+$": {
+          "type": "object",
+          "required": ["enabled"],
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "description": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

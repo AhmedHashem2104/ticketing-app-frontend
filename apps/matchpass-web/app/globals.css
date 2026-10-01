@@ -1,0 +1,5 @@
+@import "@repo/design-system/styles.css";
+
+/* Scan the app's own components for utility classes too. */
+@source "../components";
+@source "../app";

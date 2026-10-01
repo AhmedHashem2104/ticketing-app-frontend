@@ -1,0 +1,53 @@
+{
+  "$schema": "./feature-flags.schema.json",
+  "flags": {
+    "waitingRoom": {
+      "enabled": true,
+      "description": "Virtual waiting room before high-demand match sales. When off, 'Join the waiting room' becomes 'Get tickets'."
+    },
+    "exactSeatSelection": {
+      "enabled": true,
+      "description": "Lets fans pick exact stadium seats by block instead of only choosing a zone."
+    },
+    "cinema": {
+      "enabled": true,
+      "description": "Cinema showtimes and seat booking, including the Cinema navigation link."
+    },
+    "resale": {
+      "enabled": true,
+      "description": "Official face-value resale: Resale navigation, Resell buttons and the /resale page."
+    },
+    "refunds": {
+      "enabled": true,
+      "description": "Refund requests and refund tracking (/refunds)."
+    },
+    "ticketTransfer": {
+      "enabled": true,
+      "description": "Transferring tickets to another Fan ID, phone number or email."
+    },
+    "fanId": {
+      "enabled": true,
+      "description": "Fan ID onboarding (/fan-id) and the related calls to action."
+    },
+    "promoCodes": {
+      "enabled": true,
+      "description": "Promo codes at checkout and presale codes on event pages."
+    },
+    "notifyMe": {
+      "enabled": true,
+      "description": "'Notify me' and 'Set reminder' buttons for upcoming sales."
+    },
+    "parkingUpsell": {
+      "enabled": true,
+      "description": "Parking add-on offer on the match order confirmation page."
+    },
+    "addToWallet": {
+      "enabled": false,
+      "description": "Apple/Google wallet passes. Disabled until the pass service is live."
+    },
+    "arabicLanguage": {
+      "enabled": false,
+      "description": "Arabic (RTL) language toggle in the header. Disabled until translations ship."
+    }
+  }
+}
