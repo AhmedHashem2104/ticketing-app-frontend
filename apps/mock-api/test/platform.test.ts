@@ -49,6 +49,17 @@ describe("platform", () => {
     await api.get("/api/me").set(auth(token)).expect(401);
   });
 
+  it("reports readiness and tags every response with a request id", async () => {
+    const { api } = setup();
+    const ready = await api.get("/api/ready").expect(200);
+    expect(ready.body).toEqual({ ready: true });
+    expect(ready.headers["x-request-id"]).toMatch(/^[0-9a-f-]{36}$/);
+    const echoed = await api.get("/api/health").set("X-Request-Id", "trace-12345678");
+    expect(echoed.headers["x-request-id"]).toBe("trace-12345678");
+    const unsafe = await api.get("/api/health").set("X-Request-Id", "<script>");
+    expect(unsafe.headers["x-request-id"]).not.toBe("<script>");
+  });
+
   it("hides the test route when disabled", async () => {
     const { app } = createApp({ config: { enableTestRoutes: false } });
     await request(app).post("/api/__test__/reset").expect(404);
@@ -61,8 +72,13 @@ describe("loadConfig", () => {
   });
 
   it("disables test routes in production unless explicitly enabled", () => {
-    expect(loadConfig({ NODE_ENV: "production" }).enableTestRoutes).toBe(false);
-    expect(loadConfig({ NODE_ENV: "production", ENABLE_TEST_ROUTES: "true" }).enableTestRoutes).toBe(true);
+    const secret = "a-production-secret-value";
+    expect(loadConfig({ NODE_ENV: "production", QR_SECRET: secret }).enableTestRoutes).toBe(false);
+    expect(loadConfig({ NODE_ENV: "production", QR_SECRET: secret, ENABLE_TEST_ROUTES: "true" }).enableTestRoutes).toBe(true);
+  });
+
+  it("requires a QR signing secret in production", () => {
+    expect(() => loadConfig({ NODE_ENV: "production" })).toThrow(/QR_SECRET/);
   });
 
   it("parses CORS origins and rejects invalid values", () => {

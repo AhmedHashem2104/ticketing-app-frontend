@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { amountSchema, egyptMobileSchema, idSchema, isoDateTimeSchema, themeSchema } from "./common";
+import { dayjs } from "./datetime";
 import { eventKindSchema } from "./events";
 
 /* ---------- Holds ---------- */
@@ -27,6 +28,7 @@ export const holdRequestSchema = z.discriminatedUnion("type", [
       .array(z.object({ ticketTypeId: idSchema, quantity: z.number().int().min(1).max(8) }))
       .min(1, { error: "Add at least one ticket" }),
   }),
+  z.object({ type: z.literal("resale"), eventId: idSchema, listingId: idSchema }),
 ]);
 export type HoldRequest = z.infer<typeof holdRequestSchema>;
 
@@ -109,23 +111,19 @@ export const cardExpirySchema = z
   .regex(/^(0[1-9]|1[0-2])\s?\/\s?(\d{2})$/, { error: "Use the format MM / YY" })
   .refine(
     (value) => {
-      const [mm, yy] = value.split("/").map((part) => Number(part.trim()));
-      const now = new Date();
-      const expiry = new Date(2000 + (yy ?? 0), mm ?? 0, 1); // first day of the month after expiry
-      return expiry > now;
+      const [mm, yy] = value.split("/").map((part) => part.trim());
+      // Cards work until the end of their expiry month.
+      return dayjs(`20${yy}-${mm}-01`).endOf("month").isAfter(dayjs());
     },
     { error: "This card has expired" },
   );
 
+/**
+ * Card details are entered on the payment provider's hosted page (PCI DSS scope stays with the
+ * provider) — Matchpass only ever sends the chosen method.
+ */
 export const paymentDetailsSchema = z.discriminatedUnion("method", [
-  z.object({
-    method: z.literal("card"),
-    cardNumber: cardNumberSchema,
-    expiry: cardExpirySchema,
-    cvc: z.string().regex(/^\d{3,4}$/, { error: "Enter the 3 or 4 digit security code" }),
-    nameOnCard: z.string().trim().min(2, { error: "Enter the name on the card" }),
-    saveCard: z.boolean().default(false),
-  }),
+  z.object({ method: z.literal("card") }),
   z.object({ method: z.literal("wallet"), walletPhone: egyptMobileSchema }),
   z.object({ method: z.literal("instapay") }),
   z.object({ method: z.literal("fawry") }),
@@ -142,6 +140,15 @@ export type CheckoutFormValues = z.input<typeof checkoutFormSchema>;
 export const createOrderRequestSchema = checkoutFormSchema.extend({ holdId: idSchema });
 export type CreateOrderRequest = z.input<typeof createOrderRequestSchema>;
 
+/** Validated by the payment provider's hosted card page (the mock provider uses it too). */
+export const hostedCardFormSchema = z.object({
+  cardNumber: cardNumberSchema,
+  expiry: cardExpirySchema,
+  cvc: z.string().regex(/^\d{3,4}$/, { error: "Enter the 3 or 4 digit security code" }),
+  nameOnCard: z.string().trim().min(2, { error: "Enter the name on the card" }),
+});
+export type HostedCardForm = z.input<typeof hostedCardFormSchema>;
+
 export const promoRequestSchema = z.object({
   code: z
     .string()
@@ -156,7 +163,16 @@ export type PromoRequest = z.input<typeof promoRequestSchema>;
 export const ticketVariantSchema = z.enum(["ink", "lime", "purple"]);
 export type TicketVariant = z.infer<typeof ticketVariantSchema>;
 
-export const ticketStatusSchema = z.enum(["valid", "refund_pending", "refunded", "cancelled", "transferred", "listed"]);
+export const ticketStatusSchema = z.enum([
+  "valid",
+  "refund_pending",
+  "refunded",
+  "cancelled",
+  "transfer_pending",
+  "transferred",
+  "listed",
+  "resold",
+]);
 export type TicketStatus = z.infer<typeof ticketStatusSchema>;
 
 export const ticketSchema = z.object({
@@ -218,12 +234,69 @@ export const transferRequestSchema = z.discriminatedUnion("mode", [
 ]);
 export type TransferRequest = z.input<typeof transferRequestSchema>;
 
+export const transferSchema = z.object({
+  id: idSchema,
+  ticketId: idSchema,
+  status: z.enum(["pending", "accepted", "declined", "cancelled", "expired"]),
+  direction: z.enum(["outgoing", "incoming"]),
+  fromName: z.string(),
+  recipientLabel: z.string(),
+  eventTitle: z.string(),
+  eventSlug: z.string(),
+  seatLabel: z.string(),
+  startsAt: isoDateTimeSchema,
+  createdAt: isoDateTimeSchema,
+  expiresAt: isoDateTimeSchema,
+});
+export type Transfer = z.infer<typeof transferSchema>;
+
+export const transfersResponseSchema = z.object({ incoming: z.array(transferSchema), outgoing: z.array(transferSchema) });
+export type TransfersResponse = z.infer<typeof transfersResponseSchema>;
+
+/* ---------- Entry QR ---------- */
+
+/** Short-lived, server-signed entry token. Screenshots stop working when it rotates. */
+export const qrTokenSchema = z.object({
+  token: z.string().min(16),
+  expiresAt: isoDateTimeSchema,
+  refreshInSeconds: z.number().int().positive(),
+});
+export type QrToken = z.infer<typeof qrTokenSchema>;
+
+export const gateVerifyRequestSchema = z.object({ token: z.string().min(1) });
+export const gateVerifyResponseSchema = z.object({
+  valid: z.boolean(),
+  reason: z.enum(["ok", "expired", "tampered", "not_valid", "unknown_ticket"]),
+  ticketCode: z.string().optional(),
+  holderName: z.string().optional(),
+  eventTitle: z.string().optional(),
+});
+export type GateVerifyResponse = z.infer<typeof gateVerifyResponseSchema>;
+
 /* ---------- Orders ---------- */
+
+export const orderStatusSchema = z.enum(["pending_payment", "paid", "payment_failed", "expired"]);
+export type OrderStatus = z.infer<typeof orderStatusSchema>;
+
+export const orderPaymentSchema = z.object({
+  method: paymentMethodSchema,
+  /** Provider page to send the fan to (cards). */
+  redirectUrl: z.string().optional(),
+  /** Fawry bill reference. */
+  reference: z.string().optional(),
+  /** When an unpaid order is released. */
+  expiresAt: isoDateTimeSchema.optional(),
+  instructions: z.string().optional(),
+  failureReason: z.string().optional(),
+});
+export type OrderPayment = z.infer<typeof orderPaymentSchema>;
 
 export const orderSchema = z.object({
   id: idSchema,
   reference: z.string(),
-  status: z.enum(["paid", "awaiting_payment"]),
+  holdId: idSchema,
+  status: orderStatusSchema,
+  payment: orderPaymentSchema,
   eventSlug: z.string(),
   eventTitle: z.string(),
   eventTag: z.string(),
@@ -233,7 +306,6 @@ export const orderSchema = z.object({
   entryNote: z.string(),
   total: amountSchema,
   paymentLabel: z.string(),
-  fawryReference: z.string().optional(),
   createdAt: isoDateTimeSchema,
   tickets: z.array(ticketSchema),
   nextSteps: z.array(z.object({ title: z.string(), body: z.string() })),
@@ -276,6 +348,18 @@ export const resaleListingSchema = z.object({
   detail: z.string(),
 });
 export type ResaleListing = z.infer<typeof resaleListingSchema>;
+
+/** A listing on the public resale marketplace (what buyers see). */
+export const resaleOfferSchema = z.object({
+  id: idSchema,
+  eventId: idSchema,
+  label: z.string(),
+  seatLabel: z.string(),
+  price: amountSchema,
+  faceValue: amountSchema,
+  requiresFanId: z.boolean(),
+});
+export type ResaleOffer = z.infer<typeof resaleOfferSchema>;
 
 export const resaleQuote = (price: number) => {
   const fee = Math.round(price * RESALE_FEE_RATE * 100) / 100;

@@ -48,6 +48,7 @@ export const apiErrorCodes = [
   "SEAT_UNAVAILABLE",
   "PAYMENT_DECLINED",
   "INVALID_CODE",
+  "RATE_LIMITED",
   "INTERNAL_ERROR",
 ] as const;
 export type ApiErrorCode = (typeof apiErrorCodes)[number];

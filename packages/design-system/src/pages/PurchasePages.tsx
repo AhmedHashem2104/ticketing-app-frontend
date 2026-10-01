@@ -18,7 +18,7 @@ import { Button, LinkButton } from "../atoms/Button";
 import { Eyebrow, Heading } from "../atoms/Typography";
 import { ErrorState, Legend, LoadingState } from "../molecules/Content";
 import { ChipGroup } from "../molecules/Navigation";
-import { CheckoutForm, checkoutFormPropsSchema, NextSteps, OrderHero, OrderSummaryStrip, UpsellBanner } from "../organisms/Checkout";
+import { CheckoutForm, checkoutFormPropsSchema, NextSteps, OrderHero, OrderPaymentStatus, OrderSummaryStrip, UpsellBanner } from "../organisms/Checkout";
 import { EventContextBar, eventContextBarPropsSchema } from "../organisms/EventDetail";
 import { MinimalHeader } from "../organisms/Header";
 import { WaitingRoomPanel } from "../organisms/Queue";
@@ -589,6 +589,10 @@ export const orderConfirmationPagePropsSchema = z.object({
   header: zNode,
   order: orderSchema,
   ticketsHref: zHref,
+  /** Where to retry a failed payment (the checkout for the same hold). */
+  retryHref: zHref.optional(),
+  /** Where to start again once the order expired. */
+  eventHref: zHref.optional(),
   onAddToCalendar: zFn<() => void>().optional(),
   onDownloadReceipt: zFn<() => void>().optional(),
   parking: z.object({ onAdd: zFn<() => void>(), added: z.boolean() }).optional(),
@@ -596,27 +600,28 @@ export const orderConfirmationPagePropsSchema = z.object({
 
 export type OrderConfirmationPageProps = z.input<typeof orderConfirmationPagePropsSchema>;
 
-/** Page · Order confirmed. */
+/** Page · Order confirmation, including payments still in progress, failed or expired. */
 export function OrderConfirmationPage(props: OrderConfirmationPageProps) {
   validateProps("OrderConfirmationPage", orderConfirmationPagePropsSchema, props);
-  const { header, order, ticketsHref, onAddToCalendar, onDownloadReceipt, parking } = props;
-  const awaiting = order.status === "awaiting_payment";
+  const { header, order, ticketsHref, retryHref, eventHref, onAddToCalendar, onDownloadReceipt, parking } = props;
+  if (order.status !== "paid") {
+    return (
+      <SiteLayout header={header}>
+        <Container width="narrow" className="flex flex-col gap-7 pt-12">
+          <OrderPaymentStatus order={order} retryHref={retryHref} eventHref={eventHref} />
+        </Container>
+      </SiteLayout>
+    );
+  }
   return (
     <SiteLayout header={header}>
       <Container width="narrow" className="flex flex-col gap-7 pt-12">
-        <OrderHero
-          title={awaiting ? "Almost there" : "You're going"}
-          reference={order.reference}
-          note={awaiting ? `Pay at any Fawry outlet with reference ${order.fawryReference ?? ""}` : "Confirmation sent by SMS and email"}
-          pending={awaiting}
-        />
+        <OrderHero title="You're going" reference={order.reference} note="Confirmation sent by SMS and email" />
         <OrderSummaryStrip order={order} />
         <div className="flex flex-wrap justify-center gap-3">
-          {!awaiting ? (
-            <LinkButton href={ticketsHref} variant="primary" size="xl">
-              View my tickets
-            </LinkButton>
-          ) : null}
+          <LinkButton href={ticketsHref} variant="primary" size="xl">
+            View my tickets
+          </LinkButton>
           {onAddToCalendar ? (
             <Button variant="outline" size="xl" className="font-normal" onClick={onAddToCalendar}>
               Add to calendar

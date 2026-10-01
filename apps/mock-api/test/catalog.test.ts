@@ -130,7 +130,7 @@ describe("seat maps", () => {
 
   it("refuses seat maps for events not on sale yet", async () => {
     const { api } = setup();
-    await api.get("/api/events/egypt-vs-opponent/seatmap").expect(403);
+    await api.get("/api/events/egypt-vs-morocco/seatmap").expect(403);
   });
 
   it("serves cinema seats per showtime", async () => {
@@ -159,9 +159,9 @@ describe("presale, notify and alerts", () => {
 
   it("subscribes signed-in fans to on-sale alerts", async () => {
     const { api, login, auth, store } = setup();
-    await api.post("/api/events/egypt-vs-opponent/notify").send({}).expect(401);
+    await api.post("/api/events/egypt-vs-morocco/notify").send({}).expect(401);
     const token = await login();
-    const res = await api.post("/api/events/egypt-vs-opponent/notify").set(auth(token)).send({ channel: "email" }).expect(201);
+    const res = await api.post("/api/events/egypt-vs-morocco/notify").set(auth(token)).send({ channel: "email" }).expect(201);
     expect(res.body).toMatchObject({ subscribed: true, channel: "email" });
     expect(store.notifications.size).toBe(1);
   });
@@ -175,5 +175,23 @@ describe("presale, notify and alerts", () => {
     const t2 = await signUpNewUser();
     const fresh = await api.get("/api/alerts").set(auth(t2)).expect(200);
     expect(fresh.body).toEqual([]);
+  });
+});
+
+describe("cinema and resale listings", () => {
+  it("browses films on the cinema tab", async () => {
+    const { api } = setup();
+    const res = await api.get("/api/events?tab=cinema").expect(200);
+    expect(res.body.items.map((e: { title: string }) => e.title).sort()).toEqual(["The Last Lighthouse", "Zamalek Nights"]);
+    expect(res.body.facets.categories).toEqual(["Cinema"]);
+  });
+
+  it("shows resale offers to anyone, without seller details", async () => {
+    const { api } = setup();
+    const res = await api.get("/api/events/nile-philharmonic-film-classics/resale").expect(200);
+    expect(res.body).toEqual([
+      { id: "lst_resale_3", eventId: "evt_nile_philharmonic", label: "Fan resale", seatLabel: "Stalls · Row B · Seat 9", price: 550, faceValue: 600, requiresFanId: false },
+    ]);
+    await api.get("/api/events/nope/resale").expect(404);
   });
 });

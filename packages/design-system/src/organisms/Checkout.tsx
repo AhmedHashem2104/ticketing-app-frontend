@@ -9,16 +9,17 @@ import {
   promoRequestSchema,
   type PaymentMethod,
 } from "@repo/contracts";
-import { Check, Lock } from "lucide-react";
+import { Check, Loader2, Lock, ReceiptText, X } from "lucide-react";
 import { useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
-import { Button } from "../atoms/Button";
+import { Button, LinkButton } from "../atoms/Button";
 import { Input, RadioGroup } from "../atoms/FormControls";
 import { Eyebrow, Heading } from "../atoms/Typography";
 import { HolderRow, Notice, NumberedStep } from "../molecules/Content";
 import { CheckboxField, Field, OptionCard } from "../molecules/Form";
-import { validateProps, zClassName, zFn, zNode } from "../lib/props";
+import { dayLabel, timeLabel } from "../lib/datetime";
+import { validateProps, zClassName, zFn, zHref, zNode } from "../lib/props";
 import { themeSurface } from "../lib/theme";
 import { cn } from "../lib/utils";
 
@@ -28,28 +29,11 @@ import { cn } from "../lib/utils";
 const checkoutFlatSchema = z
   .object({
     method: paymentMethodSchema,
-    cardNumber: z.string(),
-    expiry: z.string(),
-    cvc: z.string(),
-    nameOnCard: z.string(),
-    saveCard: z.boolean(),
     walletPhone: z.string(),
     acceptTerms: z.boolean(),
   })
   .transform((flat, ctx) => {
-    const payment =
-      flat.method === "card"
-        ? {
-            method: "card" as const,
-            cardNumber: flat.cardNumber,
-            expiry: flat.expiry,
-            cvc: flat.cvc,
-            nameOnCard: flat.nameOnCard,
-            saveCard: flat.saveCard,
-          }
-        : flat.method === "wallet"
-          ? { method: "wallet" as const, walletPhone: flat.walletPhone }
-          : { method: flat.method };
+    const payment = flat.method === "wallet" ? { method: "wallet" as const, walletPhone: flat.walletPhone } : { method: flat.method };
     const result = checkoutFormSchema.safeParse({ payment, acceptTerms: flat.acceptTerms });
     if (!result.success) {
       for (const issue of result.error.issues) {
@@ -82,7 +66,12 @@ export const checkoutFormPropsSchema = z.object({
 export type CheckoutFormProps = z.input<typeof checkoutFormPropsSchema>;
 
 const METHODS: { id: PaymentMethod; name: string; note: string; info?: string }[] = [
-  { id: "card", name: "Debit or credit card", note: "Visa, Mastercard, Meeza" },
+  {
+    id: "card",
+    name: "Debit or credit card",
+    note: "Visa, Mastercard, Meeza",
+    info: "You’ll enter your card on our payment provider’s secure page, then come straight back here.",
+  },
   { id: "wallet", name: "Mobile wallet", note: "Pay from your phone wallet" },
   {
     id: "instapay",
@@ -94,19 +83,9 @@ const METHODS: { id: PaymentMethod; name: string; note: string; info?: string }[
     id: "fawry",
     name: "Fawry reference",
     note: "Pay cash at any Fawry outlet",
-    info: "We’ll give you a reference number. Pay before your hold ends or the tickets go back on sale.",
+    info: "We’ll give you a reference number and keep your tickets for 48 hours. They’re issued as soon as you pay.",
   },
 ];
-
-const formatCardNumber = (value: string) =>
-  value
-    .replace(/\D/g, "")
-    .slice(0, 19)
-    .replace(/(\d{4})(?=\d)/g, "$1 ");
-const formatExpiry = (value: string) => {
-  const digits = value.replace(/\D/g, "").slice(0, 4);
-  return digits.length > 2 ? `${digits.slice(0, 2)} / ${digits.slice(2)}` : digits;
-};
 
 /** Organism · CheckoutForm — payment method, terms and pay action, validated with zod. */
 export function CheckoutForm(props: CheckoutFormProps) {
@@ -116,11 +95,6 @@ export function CheckoutForm(props: CheckoutFormProps) {
     resolver: zodResolver(checkoutFlatSchema),
     defaultValues: {
       method: "card",
-      cardNumber: "",
-      expiry: "",
-      cvc: "",
-      nameOnCard: "",
-      saveCard: false,
       walletPhone: "",
       acceptTerms: true,
     },
@@ -183,62 +157,7 @@ export function CheckoutForm(props: CheckoutFormProps) {
               >
                 {METHODS.map((m) => (
                   <OptionCard key={m.id} value={m.id} title={m.name} description={m.note} selected={field.value === m.id} size="lg">
-                    {m.id === "card" ? (
-                      <div className="grid grid-cols-2 gap-2.5">
-                        <Controller
-                          control={form.control}
-                          name="cardNumber"
-                          render={({ field: f }) => (
-                            <Field label="Card number" error={errors.cardNumber?.message} className="col-span-2">
-                              <Input
-                                mono
-                                inputMode="numeric"
-                                autoComplete="cc-number"
-                                placeholder="1234 5678 9012 3456"
-                                value={f.value}
-                                onBlur={f.onBlur}
-                                onChange={(e) => f.onChange(formatCardNumber(e.target.value))}
-                              />
-                            </Field>
-                          )}
-                        />
-                        <Controller
-                          control={form.control}
-                          name="expiry"
-                          render={({ field: f }) => (
-                            <Field label="Expiry" error={errors.expiry?.message}>
-                              <Input
-                                mono
-                                inputMode="numeric"
-                                autoComplete="cc-exp"
-                                placeholder="MM / YY"
-                                value={f.value}
-                                onBlur={f.onBlur}
-                                onChange={(e) => f.onChange(formatExpiry(e.target.value))}
-                              />
-                            </Field>
-                          )}
-                        />
-                        <Field label="CVC" error={errors.cvc?.message}>
-                          <Input mono inputMode="numeric" autoComplete="cc-csc" placeholder="123" maxLength={4} {...form.register("cvc")} />
-                        </Field>
-                        <Field label="Name on card" error={errors.nameOnCard?.message} className="col-span-2">
-                          <Input autoComplete="cc-name" {...form.register("nameOnCard")} />
-                        </Field>
-                        <Controller
-                          control={form.control}
-                          name="saveCard"
-                          render={({ field: f }) => (
-                            <CheckboxField
-                              label="Save card for next time"
-                              checked={f.value}
-                              onCheckedChange={f.onChange}
-                              className="col-span-2"
-                            />
-                          )}
-                        />
-                      </div>
-                    ) : m.id === "wallet" ? (
+                    {m.id === "wallet" ? (
                       <Field label="Wallet phone number" error={errors.walletPhone?.message} hint="Egyptian mobile number, without +20">
                         <Input type="tel" mono autoComplete="tel-national" placeholder="10 0000 0000" {...form.register("walletPhone")} />
                       </Field>
@@ -252,7 +171,7 @@ export function CheckoutForm(props: CheckoutFormProps) {
           />
           <p className="flex items-center gap-2 pt-1 text-xs text-muted-ink">
             <Lock className="size-4" aria-hidden="true" />
-            Payments processed securely by {providerName}. We never store your card number.
+            Payments processed securely by {providerName}. Your card details never reach Matchpass.
           </p>
         </fieldset>
       </div>
@@ -363,6 +282,90 @@ export function OrderHero(props: OrderHeroProps) {
   );
 }
 
+export const orderPaymentStatusPropsSchema = z.object({
+  order: orderSchema.refine((o) => o.status !== "paid", { error: "Use OrderHero for paid orders" }),
+  retryHref: zHref.optional(),
+  eventHref: zHref.optional(),
+  className: zClassName,
+});
+export type OrderPaymentStatusProps = z.input<typeof orderPaymentStatusPropsSchema>;
+
+/**
+ * Organism · OrderPaymentStatus — an order whose payment isn't complete: waiting for a wallet or
+ * InstaPay approval, a Fawry bill to pay, a card page to finish, or a failed / expired payment.
+ */
+export function OrderPaymentStatus(props: OrderPaymentStatusProps) {
+  validateProps("OrderPaymentStatus", orderPaymentStatusPropsSchema, props);
+  const { order, retryHref, eventHref, className } = props;
+  const { payment } = order;
+  const deadline = payment.expiresAt ? `${dayLabel(payment.expiresAt)} at ${timeLabel(payment.expiresAt)}` : undefined;
+
+  if (order.status === "payment_failed" || order.status === "expired") {
+    const failed = order.status === "payment_failed";
+    return (
+      <section aria-labelledby="payment-status-title" className={cn("flex flex-col items-center gap-4 text-center", className)}>
+        <span className="flex size-20 items-center justify-center rounded-full bg-rose-soft" aria-hidden="true">
+          <X className="size-10 text-rose-ink" strokeWidth={2.5} />
+        </span>
+        <Heading as="h1" id="payment-status-title" size="4xl">
+          {failed ? "Payment didn’t go through" : "This order expired"}
+        </Heading>
+        <p className="text-[17px] text-sub">
+          Order <span className="font-mono text-ink">{order.reference}</span> ·{" "}
+          {failed ? (payment.failureReason ?? "You haven’t been charged.") : "It wasn’t paid in time, so the tickets went back on sale."}
+        </p>
+        {failed && retryHref ? (
+          <LinkButton href={retryHref} variant="pitch" size="xl">
+            Try paying again
+          </LinkButton>
+        ) : eventHref ? (
+          <LinkButton href={eventHref} variant="primary" size="xl">
+            Choose tickets again
+          </LinkButton>
+        ) : null}
+      </section>
+    );
+  }
+
+  const isFawry = payment.method === "fawry";
+  const isCard = payment.method === "card";
+  return (
+    <section aria-labelledby="payment-status-title" className={cn("flex flex-col items-center gap-5 text-center", className)}>
+      <span className="flex size-20 items-center justify-center rounded-full bg-gold" aria-hidden="true">
+        {isFawry ? <ReceiptText className="size-10 text-ink" /> : <Loader2 className="size-10 animate-spin text-ink motion-reduce:animate-none" />}
+      </span>
+      <Heading as="h1" id="payment-status-title" size="4xl">
+        {isFawry ? "Almost there" : isCard ? "Finish paying by card" : "Waiting for your payment"}
+      </Heading>
+      <p className="text-[17px] text-sub">
+        Order <span className="font-mono text-ink">{order.reference}</span> · {formatMoney(order.total)}
+      </p>
+      {isFawry && payment.reference ? (
+        <div className="flex w-full flex-col gap-1 rounded-2xl border border-line bg-white p-6">
+          <span className="text-sm text-muted-ink">Fawry reference</span>
+          <span className="font-mono text-[34px] font-bold tracking-[0.12em]">{payment.reference}</span>
+          {deadline ? <span className="text-sm text-sub">Pay before {deadline}</span> : null}
+        </div>
+      ) : null}
+      {payment.instructions ? (
+        <Notice tone="info" className="w-full text-left">
+          {payment.instructions}
+        </Notice>
+      ) : null}
+      {isCard && payment.redirectUrl ? (
+        <Button asChild variant="pitch" size="xl">
+          <a href={payment.redirectUrl}>Continue to secure payment</a>
+        </Button>
+      ) : null}
+      {!isFawry && !isCard ? (
+        <p role="status" className="text-sm text-muted-ink">
+          This page updates by itself once the payment arrives.
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
 export const orderSummaryStripPropsSchema = z.object({ order: orderSchema, className: zClassName });
 export type OrderSummaryStripProps = z.input<typeof orderSummaryStripPropsSchema>;
 
@@ -390,10 +393,10 @@ export function OrderSummaryStrip(props: OrderSummaryStripProps) {
             <span className="font-semibold">{ticket.seatLabel}</span>
           </li>
         ))}
-        {order.fawryReference ? (
+        {order.payment.reference ? (
           <li className="flex justify-between gap-2 text-[15px]">
             <span>Fawry reference</span>
-            <span className="font-mono font-semibold">{order.fawryReference}</span>
+            <span className="font-mono font-semibold">{order.payment.reference}</span>
           </li>
         ) : null}
         <li className={cn("flex justify-between gap-2 text-[15px]", order.tickets.length > 0 && "border-t border-line pt-3")}>

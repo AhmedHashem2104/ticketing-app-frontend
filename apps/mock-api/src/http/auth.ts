@@ -23,4 +23,11 @@ export function requireAuth(store: Store): RequestHandler {
   };
 }
 
+/** The signed-in user when a valid token is sent, otherwise undefined (for public routes that personalise). */
+export function optionalUser(store: Store, req: Request) {
+  const token = tokenFrom(req);
+  const userId = token ? store.sessions.get(token) : undefined;
+  return userId ? store.users.get(userId) : undefined;
+}
+
 export const currentUser = (res: Response) => res.locals.user as StoredUser;

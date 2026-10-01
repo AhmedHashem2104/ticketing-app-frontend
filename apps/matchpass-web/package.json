@@ -17,6 +17,7 @@
     "@repo/design-system": "workspace:*",
     "@tanstack/react-query": "5.104.0",
     "axios": "1.20.0",
+    "dayjs": "1.11.23",
     "next": "16.3.8",
     "react": "19.3.0",
     "react-dom": "19.3.0",

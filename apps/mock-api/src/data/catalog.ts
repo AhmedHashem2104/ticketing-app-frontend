@@ -1,4 +1,5 @@
 import type { City, EventDetail, EventKind, PriceRow, SaleStatus, Team, Theme, VenueLayout } from "@repo/contracts";
+import { dayjs } from "@repo/contracts";
 import { addHours, cairoDateTime, dayLabel, longDayLabel, timeLabel } from "./time";
 
 const statusLabels: Record<SaleStatus, string> = {
@@ -8,6 +9,8 @@ const statusLabels: Record<SaleStatus, string> = {
   queue: "Queue opens soon",
   sold_out: "Sold out · resale",
   coming_soon: "Coming soon",
+  cancelled: "Cancelled",
+  postponed: "Postponed",
 };
 
 const round5 = (n: number) => Math.round(n / 5) * 5;
@@ -55,7 +58,7 @@ type MatchSeed = {
 
 function match(seed: MatchSeed, now: Date): EventDetail {
   const startsAt = cairoDateTime(seed.day, seed.time, now);
-  const gates = timeLabel(addHours(new Date(startsAt), -2).toISOString());
+  const gates = timeLabel(addHours(startsAt, -2));
   const p = stadiumPrices(seed.priceFrom);
   const priceTable: PriceRow[] = [
     { name: "VIP lounge", where: "West upper tier", price: p.vip, availability: "few_left", availabilityLabel: "Few left" },
@@ -113,7 +116,7 @@ function match(seed: MatchSeed, now: Date): EventDetail {
     faqs: MATCH_FAQS,
     queueEnabled: seed.queueEnabled ?? false,
     presaleCodeEnabled: false,
-    ...(seed.queueEnabled ? { saleOpensAt: new Date(now.getTime() + ((2 * 24 + 4) * 3600 + 12 * 60 + 36) * 1000).toISOString() } : {}),
+    ...(seed.queueEnabled ? { saleOpensAt: dayjs(now).add(2, "day").add(4, "hour").add(12, "minute").add(36, "second").toISOString() } : {}),
   };
 }
 
@@ -143,7 +146,7 @@ type ShowSeed = {
 function show(seed: ShowSeed, now: Date): EventDetail {
   const startsAt = cairoDateTime(seed.day, seed.time, now);
   const isCinema = seed.kind === "cinema";
-  const doors = seed.doors ?? timeLabel(addHours(new Date(startsAt), -1).toISOString());
+  const doors = seed.doors ?? timeLabel(addHours(startsAt, -1));
   const priceTable: PriceRow[] =
     seed.layout === "arena"
       ? arenaPriceTable(seed.priceFrom)
@@ -195,11 +198,11 @@ function show(seed: ShowSeed, now: Date): EventDetail {
       { time: doors, label: "Doors open" },
       { time: seed.time, label: seed.subtitle?.replace(/^with (special guests )?/, "") ?? "Support act" },
       {
-        time: timeLabel(addHours(new Date(startsAt), 1.25).toISOString()),
+        time: timeLabel(addHours(startsAt, 1.25)),
         label: seed.title.split(" — ")[0] ?? seed.title,
         headline: true,
       },
-      { time: timeLabel(addHours(new Date(startsAt), 3.25).toISOString()), label: "Show ends" },
+      { time: timeLabel(addHours(startsAt, 3.25)), label: "Show ends" },
     ],
     facts: [
       { label: "DATE", value: longDayLabel(startsAt).split(" ").slice(0, 3).join(" ") },
@@ -269,7 +272,7 @@ const teams = {
   upper: { name: "Upper Egypt SC", short: "UES" },
   redSea: { name: "Red Sea FC", short: "RSF" },
   egypt: { name: "Egypt", short: "EGY" },
-  opponent: { name: "[Opponent]", short: "TBC" },
+  morocco: { name: "Morocco", short: "MAR" },
 } satisfies Record<string, Team>;
 
 const venues = {
@@ -292,7 +295,7 @@ export const EVENT_IDS = {
   alex: "evt_alex_upper",
   postponed: "evt_delta_redsea",
   soldOut: "evt_nile_canal",
-  national: "evt_egypt_opponent",
+  national: "evt_egypt_morocco",
   layla: "evt_layla_nour",
   jazz: "evt_cairo_jazz",
   felucca: "evt_felucca_band",
@@ -300,6 +303,7 @@ export const EVENT_IDS = {
   desert: "evt_desert_beats",
   philharmonic: "evt_nile_philharmonic",
   film: "evt_last_lighthouse",
+  film2: "evt_zamalek_nights",
 } as const;
 
 export function buildCatalog(now: Date): EventDetail[] {
@@ -390,11 +394,11 @@ export function buildCatalog(now: Date): EventDetail[] {
     match(
       {
         id: EVENT_IDS.national,
-        slug: "egypt-vs-opponent",
+        slug: "egypt-vs-morocco",
         category: "National team",
         tag: "National team · Qualifier",
         home: teams.egypt,
-        away: teams.opponent,
+        away: teams.morocco,
         day: 44,
         time: "21:00",
         venue: venues.capital,
@@ -537,6 +541,26 @@ export function buildCatalog(now: Date): EventDetail[] {
         status: "on_sale",
         theme: "ink",
         description: "A keeper on a remote Red Sea island receives one last ship. Screen 4 · Arabic subtitles.",
+      },
+      now,
+    ),
+    show(
+      {
+        id: EVENT_IDS.film2,
+        slug: "zamalek-nights",
+        kind: "cinema",
+        layout: "cinema",
+        category: "Cinema",
+        tag: "Comedy · 1h 52m · PG · English subtitles",
+        title: "Zamalek Nights",
+        art: "Zamalek Nights",
+        day: 0,
+        time: "19:30",
+        venue: venues.cinema,
+        priceFrom: 150,
+        status: "on_sale",
+        theme: "plum",
+        description: "Three friends, one rooftop and the longest night of Ramadan. Screen 4 · English subtitles.",
       },
       now,
     ),

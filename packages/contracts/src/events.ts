@@ -7,7 +7,7 @@ export type EventKind = z.infer<typeof eventKindSchema>;
 export const venueLayoutSchema = z.enum(["stadium", "arena", "hall", "cinema"]);
 export type VenueLayout = z.infer<typeof venueLayoutSchema>;
 
-export const saleStatusSchema = z.enum(["on_sale", "few_left", "presale", "queue", "sold_out", "coming_soon"]);
+export const saleStatusSchema = z.enum(["on_sale", "few_left", "presale", "queue", "sold_out", "coming_soon", "cancelled", "postponed"]);
 export type SaleStatus = z.infer<typeof saleStatusSchema>;
 
 export const citySchema = z.enum(["cairo", "alexandria", "canal", "red_sea", "delta"]);
@@ -21,7 +21,7 @@ export const cityLabels: Record<City, string> = {
   delta: "Delta",
 };
 
-export const eventTabSchema = z.enum(["matches", "concerts"]);
+export const eventTabSchema = z.enum(["matches", "concerts", "cinema"]);
 export type EventTab = z.infer<typeof eventTabSchema>;
 
 export const teamSchema = z.object({

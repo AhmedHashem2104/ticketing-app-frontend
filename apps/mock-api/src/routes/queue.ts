@@ -1,4 +1,4 @@
-import { joinQueueRequestSchema, queueSmsRequestSchema, type QueueStatus } from "@repo/contracts";
+import { dayjs, joinQueueRequestSchema, queueSmsRequestSchema, type QueueStatus } from "@repo/contracts";
 import { Router } from "express";
 import type { AppConfig } from "../config";
 import type { Store, StoredQueue } from "../data/store";
@@ -60,20 +60,20 @@ export function queueRouter(store: Store, config: AppConfig) {
     }
     // Opening a second session moves you to the back: replace any existing one.
     for (const [id, q] of store.queues) if (q.userId === user.id && q.eventId === eventId) store.queues.delete(id);
-    const queue: StoredQueue = { id: store.id("q"), userId: user.id, eventId, createdAt: Date.now(), smsOptIn: false };
+    const queue: StoredQueue = { id: store.id("q"), userId: user.id, eventId, createdAt: dayjs().valueOf(), smsOptIn: false };
     store.queues.set(queue.id, queue);
-    res.status(201).json(queueStatus(queue, Date.now(), config.queueTimeScale));
+    res.status(201).json(queueStatus(queue, dayjs().valueOf(), config.queueTimeScale));
   });
 
   router.get("/queue/:id", (req, res) => {
     const queue = owned(param(req, "id"), currentUser(res).id);
-    res.json(queueStatus(queue, Date.now(), config.queueTimeScale));
+    res.json(queueStatus(queue, dayjs().valueOf(), config.queueTimeScale));
   });
 
   router.patch("/queue/:id", (req, res) => {
     const queue = owned(param(req, "id"), currentUser(res).id);
     queue.smsOptIn = parseBody(queueSmsRequestSchema, req).smsOptIn;
-    res.json(queueStatus(queue, Date.now(), config.queueTimeScale));
+    res.json(queueStatus(queue, dayjs().valueOf(), config.queueTimeScale));
   });
 
   router.delete("/queue/:id", (req, res) => {
