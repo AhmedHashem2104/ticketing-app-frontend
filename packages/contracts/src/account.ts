@@ -1,10 +1,11 @@
 import { z } from "zod";
-import { egyptMobileSchema, idSchema } from "./common";
+import { egyptMobileSchema, idSchema, imageUrlSchema } from "./common";
 
 export const fanSchema = z.object({
   id: idSchema,
   name: z.string(),
   initials: z.string().min(1).max(3),
+  avatarUrl: imageUrlSchema.optional(),
   fanIdMasked: z.string(),
   status: z.enum(["approved", "under_review"]),
   isSelf: z.boolean(),
@@ -27,6 +28,7 @@ export const userSchema = z.object({
   id: idSchema,
   fullName: z.string(),
   initials: z.string(),
+  avatarUrl: imageUrlSchema.optional(),
   phoneMasked: z.string(),
   email: z.email().optional(),
   fanId: fanIdStatusSchema,
@@ -105,6 +107,7 @@ export const notificationSchema = z.object({
   title: z.string(),
   body: z.string(),
   href: z.string().optional(),
+  imageUrl: imageUrlSchema.optional(),
   createdAt: z.string(),
   read: z.boolean(),
 });

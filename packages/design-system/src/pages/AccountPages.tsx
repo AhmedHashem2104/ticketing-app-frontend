@@ -1,7 +1,6 @@
 import {
   alertSchema,
   eventSummarySchema,
-  formatMoney,
   notificationSchema,
   refundSchema,
   resaleListingSchema,
@@ -12,6 +11,7 @@ import {
 } from "@repo/contracts";
 import { z } from "zod";
 import { AppLink } from "../atoms/AppLink";
+import { Thumbnail } from "../atoms/Media";
 import { Button, LinkButton } from "../atoms/Button";
 import { Skeleton } from "../atoms/Feedback";
 import { Heading } from "../atoms/Typography";
@@ -55,10 +55,10 @@ import {
   TransfersCard,
   transfersCardPropsSchema,
 } from "../organisms/Tickets";
-import { dateTimeLabel } from "../lib/datetime";
 import { validateProps, zFn, zHref, zNode } from "../lib/props";
 import { cn } from "../lib/utils";
 import { Container, SiteLayout, SplitLayout, TwoColumn } from "../templates/Layouts";
+import { useI18n } from "../lib/provider";
 
 const statusSchema = z.enum(["loading", "error", "success"]);
 const navSchema = segmentedNavPropsSchema.shape.items;
@@ -111,14 +111,15 @@ export function MyTicketsPage(props: MyTicketsPageProps) {
     onCancelTransfer,
     browseHref,
   } = props;
+  const { t } = useI18n();
   return (
     <SiteLayout header={header}>
       <Container className="flex flex-col gap-6 pt-8">
         <div className="flex flex-wrap items-end justify-between gap-5">
           <Heading as="h1" font="ticket" size="3xl">
-            My tickets
+            {t("My tickets")}
           </Heading>
-          <SegmentedNav label="Ticket lists" items={nav} />
+          <SegmentedNav label={t("Ticket lists")} items={nav} />
         </div>
         {alerts.map((alert) => (
           <Notice
@@ -139,17 +140,17 @@ export function MyTicketsPage(props: MyTicketsPageProps) {
         {status === "loading" ? (
           <ListSkeleton />
         ) : status === "error" ? (
-          <ErrorState message="We couldn't load your tickets." onRetry={onRetry} />
+          <ErrorState message={t("We couldn't load your tickets.")} onRetry={onRetry} />
         ) : tickets.length === 0 ? (
           <EmptyState
-            title="No upcoming tickets"
+            title={t("No upcoming tickets")}
             action={
               <LinkButton href={browseHref} variant="primary" size="lg">
-                Browse events
+                {t("Browse events")}
               </LinkButton>
             }
           >
-            Tickets you buy or receive appear here.
+            {t("Tickets you buy or receive appear here.")}
           </EmptyState>
         ) : (
           <ul className="m-0 flex list-none flex-col gap-2 p-0">
@@ -213,23 +214,24 @@ export function TicketWalletPage(props: TicketWalletPageProps) {
   const group = groups.find((g) => g.key === selectedKey) ?? groups[0]!;
   const i = Math.min(index, group.tickets.length - 1);
   const ticket = group.tickets[i]!;
+  const { t } = useI18n();
   return (
     <SiteLayout header={header}>
       <Container className="flex flex-col gap-[22px] pt-8">
         <AppLink href={backHref} tone="pitch" className="flex min-h-11 items-center self-start text-sm">
-          ← My tickets
+          <span className="inline-block rtl:-scale-x-100">←</span> {t("My tickets")}
         </AppLink>
         <Heading as="h1" size="3xl">
-          Ticket QR
+          {t("Ticket QR")}
         </Heading>
         <div className="flex flex-wrap items-start gap-7">
-          <section aria-label="Your events" className="flex w-full min-w-[min(100%,280px)] flex-[0_1_380px] flex-col gap-2.5">
+          <section aria-label={t("Your events")} className="flex w-full min-w-[min(100%,280px)] flex-[0_1_380px] flex-col gap-2.5">
             <ul className="m-0 flex list-none flex-col gap-2.5 p-0">
               {groups.map((g) => (
                 <li key={g.key}>
                   <TicketListItem
                     ticket={g.tickets[0]!}
-                    countLabel={`${g.tickets.length} ticket${g.tickets.length === 1 ? "" : "s"}`}
+                    countLabel={t("{count, plural, one {# ticket} other {# tickets}}", { count: g.tickets.length })}
                     selected={g.key === group.key}
                     onSelect={() => onSelect(g.key)}
                   />
@@ -277,13 +279,14 @@ export type ResalePageProps = z.input<typeof resalePagePropsSchema>;
 export function ResalePage(props: ResalePageProps) {
   validateProps("ResalePage", resalePagePropsSchema, props);
   const { header, backHref, form, success, listings, onWithdraw, withdrawingId, steps, browseHref } = props;
+  const { t } = useI18n();
   return (
     <SiteLayout header={header}>
       <Container className="pt-8">
         <TwoColumn
           asideOffset
           sticky={false}
-          asideLabel="About resale"
+          asideLabel={t("About resale")}
           aside={
             <>
               <ResaleInfoPanel steps={steps} />
@@ -292,24 +295,24 @@ export function ResalePage(props: ResalePageProps) {
           }
         >
           <AppLink href={backHref} tone="pitch" className="-mb-2 flex min-h-11 items-center self-start text-sm">
-            ← My tickets
+            <span className="inline-block rtl:-scale-x-100">←</span> {t("My tickets")}
           </AppLink>
           <Heading as="h1" size="3xl">
-            Sell your ticket
+            {t("Sell your ticket")}
           </Heading>
           {success ? <Notice tone="success">{success}</Notice> : null}
           {form.tickets.length ? (
-            <ResaleForm key={form.tickets.map((t) => t.id).join()} {...form} />
+            <ResaleForm key={form.tickets.map((ticket) => ticket.id).join()} {...form} />
           ) : (
             <EmptyState
-              title="No tickets you can resell"
+              title={t("No tickets you can resell")}
               action={
                 <LinkButton href={browseHref} variant="primary" size="lg">
-                  Browse events
+                  {t("Browse events")}
                 </LinkButton>
               }
             >
-              Match and concert tickets can be listed up to 6 hours before the event.
+              {t("Match and concert tickets can be listed up to 6 hours before the event.")}
             </EmptyState>
           )}
         </TwoColumn>
@@ -327,6 +330,7 @@ export type RefundRequestPageProps = z.input<typeof refundRequestPagePropsSchema
 export function RefundRequestPage(props: RefundRequestPageProps) {
   validateProps("RefundRequestPage", refundRequestPagePropsSchema, props);
   const { backHref, wizard } = props;
+  const { t } = useI18n();
   return (
     <SiteLayout
       header={
@@ -334,7 +338,7 @@ export function RefundRequestPage(props: RefundRequestPageProps) {
           wordmark="ticket"
           trailing={
             <AppLink href={backHref} tone="pitch" className="flex min-h-11 items-center text-sm">
-              ← Back to my tickets
+              <span className="inline-block rtl:-scale-x-100">←</span> {t("Back to my tickets")}
             </AppLink>
           }
         />
@@ -367,21 +371,22 @@ export type RefundsPageProps = z.input<typeof refundsPagePropsSchema>;
 export function RefundsPage(props: RefundsPageProps) {
   validateProps("RefundsPage", refundsPagePropsSchema, props);
   const { header, nav, status, onRetry, refunds, onCancel, cancellingId, onSecondary, policies } = props;
+  const { t } = useI18n();
   return (
     <SiteLayout header={header}>
       <Container className="flex flex-col gap-6 pt-8">
         <div className="flex flex-wrap items-end justify-between gap-5">
           <Heading as="h1" font="ticket" size="3xl">
-            Refunds
+            {t("Refunds")}
           </Heading>
-          <SegmentedNav label="Ticket lists" items={nav} />
+          <SegmentedNav label={t("Ticket lists")} items={nav} />
         </div>
         {status === "loading" ? (
           <ListSkeleton />
         ) : status === "error" ? (
-          <ErrorState message="We couldn't load your refunds." onRetry={onRetry} />
+          <ErrorState message={t("We couldn't load your refunds.")} onRetry={onRetry} />
         ) : refunds.length === 0 ? (
-          <EmptyState title="No refunds yet">Refund requests you make appear here with their progress.</EmptyState>
+          <EmptyState title={t("No refunds yet")}>{t("Refund requests you make appear here with their progress.")}</EmptyState>
         ) : (
           refunds.map((refund) => (
             <RefundStatusCard
@@ -535,11 +540,12 @@ export type AccountPageProps = z.input<typeof accountPagePropsSchema>;
 export function AccountPage(props: AccountPageProps) {
   validateProps("AccountPage", accountPagePropsSchema, props);
   const { header, status, onRetry, profile, preferences, fans, links } = props;
+  const { t } = useI18n();
   return (
     <SiteLayout header={header}>
       <Container className="flex flex-col gap-6 pt-8">
         <Heading as="h1" size="3xl">
-          Your account
+          {t("Your account")}
         </Heading>
         {status === "loading" ? (
           <div className="grid gap-4 md:grid-cols-2" aria-hidden="true">
@@ -547,12 +553,12 @@ export function AccountPage(props: AccountPageProps) {
             <Skeleton className="h-[220px]" rounded="xl" />
           </div>
         ) : status === "error" || !profile ? (
-          <ErrorState message="We couldn't load your account." onRetry={onRetry} />
+          <ErrorState message={t("We couldn't load your account.")} onRetry={onRetry} />
         ) : (
           <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
             <div className="flex flex-col gap-5">
               <AccountProfileCard {...profile} />
-              <nav aria-label="Account shortcuts" className="rounded-2xl border border-line bg-white p-2">
+              <nav aria-label={t("Account shortcuts")} className="rounded-2xl border border-line bg-white p-2">
                 <ul className="m-0 flex list-none flex-col p-0">
                   {links.map((link) => (
                     <li key={link.href}>
@@ -596,28 +602,29 @@ export type TransfersPageProps = z.input<typeof transfersPagePropsSchema>;
 export function TransfersPage(props: TransfersPageProps) {
   validateProps("TransfersPage", transfersPagePropsSchema, props);
   const { header, status, onRetry, incoming, outgoing, message, backHref } = props;
+  const { t } = useI18n();
   return (
     <SiteLayout header={header}>
       <Container width="narrow" className="flex flex-col gap-5 pt-8">
         <AppLink href={backHref} tone="pitch" className="flex min-h-11 items-center self-start text-sm">
-          ← My tickets
+          <span className="inline-block rtl:-scale-x-100">←</span> {t("My tickets")}
         </AppLink>
         <Heading as="h1" size="3xl">
-          Ticket transfers
+          {t("Ticket transfers")}
         </Heading>
         {message ? (
           <Notice tone={message.tone} live="polite">
-            {message.text}
+            {t(message.text)}
           </Notice>
         ) : null}
         {status === "loading" ? (
           <Skeleton className="h-[200px]" rounded="xl" />
         ) : status === "error" ? (
-          <ErrorState message="We couldn't load your transfers." onRetry={onRetry} />
+          <ErrorState message={t("We couldn't load your transfers.")} onRetry={onRetry} />
         ) : (
           <>
-            <TransfersCard {...incoming} title="Sent to you" emptyLabel="Nobody has sent you a ticket." />
-            <TransfersCard {...outgoing} title="Sent by you" emptyLabel="You haven't sent any tickets." />
+            <TransfersCard {...incoming} title={t("Sent to you")} emptyLabel={t("Nobody has sent you a ticket.")} />
+            <TransfersCard {...outgoing} title={t("Sent by you")} emptyLabel={t("You haven't sent any tickets.")} />
           </>
         )}
       </Container>
@@ -641,41 +648,45 @@ export function NotificationsPage(props: NotificationsPageProps) {
   validateProps("NotificationsPage", notificationsPagePropsSchema, props);
   const { header, status, onRetry, items, onMarkAllRead } = props;
   const unread = items.filter((n) => !n.read).length;
+  const { t, f } = useI18n();
   return (
     <SiteLayout header={header}>
       <Container width="narrow" className="flex flex-col gap-5 pt-8">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <Heading as="h1" size="3xl">
-            Notifications
+            {t("Notifications")}
           </Heading>
           {onMarkAllRead && unread ? (
             <Button variant="outline" onClick={onMarkAllRead}>
-              Mark all as read
+              {t("Mark all as read")}
             </Button>
           ) : null}
         </div>
         {status === "loading" ? (
           <Skeleton className="h-[240px]" rounded="xl" />
         ) : status === "error" ? (
-          <ErrorState message="We couldn't load your notifications." onRetry={onRetry} />
+          <ErrorState message={t("We couldn't load your notifications.")} onRetry={onRetry} />
         ) : items.length === 0 ? (
-          <EmptyState title="You're all caught up">Order, transfer, refund and event updates appear here.</EmptyState>
+          <EmptyState title={t("You're all caught up")}>{t("Order, transfer, refund and event updates appear here.")}</EmptyState>
         ) : (
           <ul className="m-0 flex list-none flex-col overflow-hidden rounded-2xl border border-line bg-white p-0">
             {items.map((item) => (
-              <li key={item.id} className="flex flex-col gap-1 border-b border-line px-5 py-4 last:border-b-0">
-                <span className={cn("text-[15px]", !item.read && "font-semibold")}>
-                  {!item.read ? <span className="sr-only">Unread: </span> : null}
-                  {item.href ? (
-                    <AppLink href={item.href} underline>
-                      {item.title}
-                    </AppLink>
-                  ) : (
-                    item.title
-                  )}
+              <li key={item.id} className="flex gap-4 border-b border-line px-5 py-4 last:border-b-0">
+                {item.imageUrl ? <Thumbnail src={item.imageUrl} /> : null}
+                <span className="flex min-w-0 flex-1 flex-col gap-1">
+                  <span className={cn("text-[15px]", !item.read && "font-semibold")}>
+                    {!item.read ? <span className="sr-only">{t("Unread:")} </span> : null}
+                    {item.href ? (
+                      <AppLink href={item.href} underline>
+                        {item.title}
+                      </AppLink>
+                    ) : (
+                      item.title
+                    )}
+                  </span>
+                  <span className="text-sm text-sub">{item.body}</span>
+                  <span className="font-mono text-xs text-muted-ink">{f.dateTimeLabel(item.createdAt)}</span>
                 </span>
-                <span className="text-sm text-sub">{item.body}</span>
-                <span className="font-mono text-xs text-muted-ink">{dateTimeLabel(item.createdAt)}</span>
               </li>
             ))}
           </ul>
@@ -706,19 +717,20 @@ export type ResaleMarketPageProps = z.input<typeof resaleMarketPagePropsSchema>;
 export function ResaleMarketPage(props: ResaleMarketPageProps) {
   validateProps("ResaleMarketPage", resaleMarketPagePropsSchema, props);
   const { header, event, status, onRetry, offers, onBuy, buyingId, serverError, fanIdHref, backHref } = props;
+  const { t, f } = useI18n();
   return (
     <SiteLayout header={header}>
       <Container width="narrow" className="flex flex-col gap-5 pt-8">
         <AppLink href={backHref} tone="pitch" className="flex min-h-11 items-center self-start text-sm">
-          ← {event.title}
+          <span className="inline-block rtl:-scale-x-100">←</span> {event.title}
         </AppLink>
         <div className="flex flex-col gap-1.5">
           <Heading as="h1" size="3xl">
-            Official resale
+            {t("Official resale")}
           </Heading>
           <p className="text-[15px] text-sub">
-            {event.title} · {dateTimeLabel(event.startsAt)} · {event.venue.name}. Fans sell at face value or less, and you get a brand-new
-            ticket.
+            {event.title} · {f.dateTimeLabel(event.startsAt)} · {event.venue.name}.{" "}
+            {t("Fans sell at face value or less, and you get a brand-new ticket.")}
           </p>
         </div>
         {fanIdHref ? (
@@ -726,23 +738,25 @@ export function ResaleMarketPage(props: ResaleMarketPageProps) {
             tone="info"
             action={
               <LinkButton href={fanIdHref} variant="pitch" size="md">
-                Get your Fan ID
+                {t("Get your Fan ID")}
               </LinkButton>
             }
           >
-            Match tickets go to an approved Fan ID. Get yours first — it takes about 2 minutes.
+            {t("Match tickets go to an approved Fan ID. Get yours first — it takes about 2 minutes.")}
           </Notice>
         ) : null}
-        {serverError ? <Notice tone="danger">{serverError}</Notice> : null}
+        {serverError ? <Notice tone="danger">{t(serverError)}</Notice> : null}
         {status === "loading" ? (
           <Skeleton className="h-[200px]" rounded="xl" />
         ) : status === "error" ? (
-          <ErrorState message="We couldn't load resale tickets." onRetry={onRetry} />
+          <ErrorState message={t("We couldn't load resale tickets.")} onRetry={onRetry} />
         ) : offers.length === 0 ? (
-          <EmptyState title="No resale tickets right now">Fans list tickets all the time — check back closer to the day.</EmptyState>
+          <EmptyState title={t("No resale tickets right now")}>
+            {t("Fans list tickets all the time — check back closer to the day.")}
+          </EmptyState>
         ) : (
           <ul
-            aria-label="Resale tickets"
+            aria-label={t("Resale tickets")}
             className="m-0 flex list-none flex-col overflow-hidden rounded-2xl border border-line bg-white p-0"
           >
             {offers.map((offer) => (
@@ -754,20 +768,21 @@ export function ResaleMarketPage(props: ResaleMarketPageProps) {
                   <span className="text-[15px] font-semibold">{offer.seatLabel}</span>
                   <span className="text-sm text-sub">
                     {offer.label}
-                    {offer.price < offer.faceValue ? ` · face value ${formatMoney(offer.faceValue)}` : " · face value"}
+                    {" · "}
+                    {offer.price < offer.faceValue ? t("face value {amount}", { amount: f.money(offer.faceValue) }) : t("face value")}
                   </span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="font-display text-[26px] font-extrabold">{formatMoney(offer.price)}</span>
+                  <span className="font-display text-[26px] font-extrabold">{f.money(offer.price)}</span>
                   {fanIdHref ? null : (
                     <Button
                       variant="pitch"
                       onClick={() => onBuy(offer)}
                       loading={buyingId === offer.id}
                       disabled={!!buyingId && buyingId !== offer.id}
-                      aria-label={`Buy ${offer.seatLabel} for ${formatMoney(offer.price)}`}
+                      aria-label={t("Buy {seat} for {amount}", { seat: offer.seatLabel, amount: f.money(offer.price) })}
                     >
-                      Buy
+                      {t("Buy")}
                     </Button>
                   )}
                 </div>
@@ -798,6 +813,7 @@ export type InfoPageProps = z.input<typeof infoPagePropsSchema>;
 export function InfoPage(props: InfoPageProps) {
   validateProps("InfoPage", infoPagePropsSchema, props);
   const { header, footer, eyebrow, title, intro, updated, sections, contact } = props;
+  const { t } = useI18n();
   return (
     <SiteLayout header={header} footer={footer}>
       <Container className="flex flex-col gap-8 pt-10">
@@ -807,11 +823,11 @@ export function InfoPage(props: InfoPageProps) {
             {title}
           </Heading>
           <p className="text-[17px] leading-normal text-sub">{intro}</p>
-          {updated ? <p className="text-sm text-muted-ink">Last updated {updated}</p> : null}
+          {updated ? <p className="text-sm text-muted-ink">{t("Last updated {date}", { date: updated })}</p> : null}
         </div>
         <div className="flex flex-wrap items-start gap-10">
-          <nav aria-label="On this page" className="flex-[0_1_240px] lg:sticky lg:top-6">
-            <h2 className="pb-2 text-sm font-semibold text-sub">On this page</h2>
+          <nav aria-label={t("On this page")} className="flex-[0_1_240px] lg:sticky lg:top-6">
+            <h2 className="pb-2 text-sm font-semibold text-sub">{t("On this page")}</h2>
             <ul className="m-0 flex list-none flex-col gap-1 p-0">
               {sections.map((s) => (
                 <li key={s.id}>
@@ -844,7 +860,7 @@ export function InfoPage(props: InfoPageProps) {
                   </LinkButton>
                 }
               >
-                Still need help? Our fan support team answers every day from 9:00 to 23:00.
+                {t("Still need help? Our fan support team answers every day from 9:00 to 23:00.")}
               </Notice>
             ) : null}
           </div>

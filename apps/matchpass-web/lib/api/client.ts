@@ -1,4 +1,5 @@
 import { apiErrorSchema, type ApiErrorCode } from "@repo/contracts";
+import { msg, negotiateLocale } from "@repo/i18n";
 import axios, { AxiosError, type AxiosInstance } from "axios";
 import { z } from "zod";
 
@@ -29,11 +30,11 @@ export function toApiError(error: unknown): ApiRequestError {
       return new ApiRequestError(error.response?.status ?? 500, code as ApiErrorCode, message, details);
     }
     if (!error.response)
-      return new ApiRequestError(0, "NETWORK_ERROR", "We can't reach Matchpass right now. Check your connection and try again.");
-    return new ApiRequestError(error.response.status, "INTERNAL_ERROR", "Something went wrong. Please try again.");
+      return new ApiRequestError(0, "NETWORK_ERROR", msg("We can't reach Matchpass right now. Check your connection and try again."));
+    return new ApiRequestError(error.response.status, "INTERNAL_ERROR", msg("Something went wrong. Please try again."));
   }
   if (error instanceof z.ZodError) {
-    return new ApiRequestError(500, "CONTRACT_ERROR", "We received an unexpected response. Please try again.");
+    return new ApiRequestError(500, "CONTRACT_ERROR", msg("We received an unexpected response. Please try again."));
   }
   return new ApiRequestError(500, "INTERNAL_ERROR", error instanceof Error ? error.message : "Something went wrong.");
 }
@@ -52,6 +53,11 @@ export function configureAuth(handlers: { onUnauthorized: () => void }) {
 
 export function createApiClient(baseURL = "/api"): AxiosInstance {
   const instance = axios.create({ baseURL, timeout: 15_000, withCredentials: true, headers: { Accept: "application/json" } });
+  // API content (event names, labels, messages) comes back in the page's language.
+  instance.interceptors.request.use((config) => {
+    if (typeof document !== "undefined") config.headers.set("Accept-Language", negotiateLocale(document.documentElement.lang));
+    return config;
+  });
   instance.interceptors.response.use(
     (response) => response,
     (error: unknown) => {

@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { msg } from "@repo/i18n";
 import {
-  formatMoney,
   refundOptionsSchema,
   refundReasonLabels,
   refundReasonSchema,
@@ -15,6 +15,7 @@ import { useState } from "react";
 import { Controller, useForm, useWatch, type FieldPath } from "react-hook-form";
 import { z } from "zod";
 import { Badge } from "../atoms/Badge";
+import { Thumbnail } from "../atoms/Media";
 import { Button, LinkButton } from "../atoms/Button";
 import { Checkbox, RadioGroup, Textarea } from "../atoms/FormControls";
 import { Eyebrow, Heading } from "../atoms/Typography";
@@ -23,10 +24,19 @@ import { CheckboxField, Field, OptionCard } from "../molecules/Form";
 import { StepProgress } from "../molecules/Navigation";
 import { validateProps, zClassName, zFn, zHref } from "../lib/props";
 import { cn } from "../lib/utils";
+import { DevAutofillButton } from "../atoms/DevAutofill";
+import { devSamples, fillForm } from "../lib/dev-samples";
 import { StubTicket } from "./Tickets";
+import { useI18n } from "../lib/provider";
 
-const STEPS = ["Tickets", "Reason", "Refund method", "Confirm", "Done"];
-const TITLES = ["Request a refund", "Tell us why", "Choose refund method", "Confirm your refund", "Refund requested"];
+const STEPS = [msg("Tickets"), msg("Reason"), msg("Refund method"), msg("Confirm"), msg("Done")];
+const TITLES = [
+  msg("Request a refund"),
+  msg("Tell us why"),
+  msg("Choose refund method"),
+  msg("Confirm your refund"),
+  msg("Refund requested"),
+];
 const STEP_FIELDS: FieldPath<RefundRequestInput>[][] = [["ticketIds"], ["reason", "details"], ["method"], ["acknowledge"]];
 
 /* ---------- RefundWizard ---------- */
@@ -50,6 +60,7 @@ export type RefundWizardProps = z.input<typeof refundWizardPropsSchema>;
 export function RefundWizard(props: RefundWizardProps) {
   validateProps("RefundWizard", refundWizardPropsSchema, props);
   const { options, step, onStepChange, onSubmit, submitting, serverError, result, trackHref, ticketsHref, className } = props;
+  const { t, f } = useI18n();
   const form = useForm<RefundRequestInput, unknown, z.output<typeof refundRequestSchema>>({
     resolver: zodResolver(refundRequestSchema),
     defaultValues: {
@@ -71,8 +82,8 @@ export function RefundWizard(props: RefundWizardProps) {
     const fields = STEP_FIELDS[step - 1] ?? [];
     const ok = await form.trigger(fields);
     if (!ok) {
-      const first = fields.map((f) => form.getFieldState(f).error?.message).find(Boolean);
-      setBlockMsg(first ?? "Check this step");
+      const first = fields.map((name) => form.getFieldState(name).error?.message).find(Boolean);
+      setBlockMsg(t(first ?? "Check this step"));
       return;
     }
     setBlockMsg(undefined);
@@ -90,23 +101,31 @@ export function RefundWizard(props: RefundWizardProps) {
 
   return (
     <div className={cn("flex flex-col gap-[22px]", className)}>
+      {step <= 4 ? (
+        <DevAutofillButton
+          onFill={() => {
+            fillForm(form, { reason: "other", details: devSamples.refundDetails, acknowledge: true });
+            setBlockMsg(undefined);
+          }}
+        />
+      ) : null}
       <div className="flex flex-col gap-2">
         <Eyebrow size="sm" className="font-semibold">
-          Order {options.reference} · {options.eventTitle} · {options.eventDateLabel}
+          {t("Order")} {options.reference} · {options.eventTitle} · {options.eventDateLabel}
         </Eyebrow>
         <Heading as="h1" font="ticket" size="2xl">
-          {TITLES[step - 1]}
+          {t(TITLES[step - 1]!)}
         </Heading>
       </div>
-      <StepProgress steps={STEPS} current={step} />
+      <StepProgress steps={STEPS.map((s) => t(s))} current={step} />
       <div className="flex flex-wrap items-start gap-7">
         <section
-          aria-label={TITLES[step - 1]}
+          aria-label={t(TITLES[step - 1]!)}
           className="flex min-w-[min(100%,560px)] flex-[1_1_620px] flex-col gap-[18px] rounded-2xl border border-line bg-white p-5 sm:p-[26px]"
         >
           {step === 1 ? (
             <fieldset className="m-0 flex flex-col gap-3 border-0 p-0">
-              <legend className="pb-3 text-lg font-semibold">Which tickets do you want to refund?</legend>
+              <legend className="pb-3 text-lg font-semibold">{t("Which tickets do you want to refund?")}</legend>
               <Controller
                 control={form.control}
                 name="ticketIds"
@@ -142,8 +161,8 @@ export function RefundWizard(props: RefundWizardProps) {
                             </span>
                           </div>
                           <span className="flex w-[110px] flex-col items-center justify-center gap-0.5 bg-lime sm:w-[130px]">
-                            <span className="font-ticket text-xl font-black">{ticket.price.toLocaleString("en-US")}</span>
-                            <span className="text-[11px]">EGP</span>
+                            <span className="font-ticket text-xl font-black">{f.number(ticket.price)}</span>
+                            <span className="text-[11px]">{f.currency}</span>
                           </span>
                         </div>
                       );
@@ -152,33 +171,35 @@ export function RefundWizard(props: RefundWizardProps) {
                 )}
               />
               <Notice tone="success" icon={false} live="off">
-                <strong>{options.deadlineNote}.</strong> You get the full ticket price back. The service fee (
-                {formatMoney(options.serviceFeePerTicket)} per ticket) isn&apos;t refundable.
+                <strong>{options.deadlineNote}.</strong>{" "}
+                {t("You get the full ticket price back. The service fee ({fee} per ticket) isn't refundable.", {
+                  fee: f.money(options.serviceFeePerTicket),
+                })}
               </Notice>
             </fieldset>
           ) : null}
 
           {step === 2 ? (
             <fieldset className="m-0 flex flex-col gap-2.5 border-0 p-0">
-              <legend className="pb-3 text-lg font-semibold">Why are you asking for a refund?</legend>
+              <legend className="pb-3 text-lg font-semibold">{t("Why are you asking for a refund?")}</legend>
               <Controller
                 control={form.control}
                 name="reason"
                 render={({ field }) => (
                   <RadioGroup
-                    aria-label="Reason"
+                    aria-label={t("Reason")}
                     value={field.value}
                     onValueChange={(v) => field.onChange(v as RefundReason)}
                     className="gap-2.5"
                   >
                     {refundReasonSchema.options.map((reason) => (
-                      <OptionCard key={reason} value={reason} title={refundReasonLabels[reason]} selected={field.value === reason} />
+                      <OptionCard key={reason} value={reason} title={t(refundReasonLabels[reason])} selected={field.value === reason} />
                     ))}
                   </RadioGroup>
                 )}
               />
               {values.reason === "other" ? (
-                <Field label="Tell us more" optionalLabel="(optional)" error={form.formState.errors.details?.message}>
+                <Field label={t("Tell us more")} optionalLabel={t("(optional)")} error={form.formState.errors.details?.message}>
                   <Textarea rows={3} {...form.register("details")} />
                 </Field>
               ) : null}
@@ -187,13 +208,13 @@ export function RefundWizard(props: RefundWizardProps) {
 
           {step === 3 ? (
             <fieldset className="m-0 flex flex-col gap-2.5 border-0 p-0">
-              <legend className="pb-3 text-lg font-semibold">Where should we send the money?</legend>
+              <legend className="pb-3 text-lg font-semibold">{t("Where should we send the money?")}</legend>
               <Controller
                 control={form.control}
                 name="method"
                 render={({ field }) => (
                   <RadioGroup
-                    aria-label="Refund method"
+                    aria-label={t("Refund method")}
                     value={field.value}
                     onValueChange={(v) => field.onChange(v as RefundMethod)}
                     className="gap-2.5"
@@ -218,13 +239,13 @@ export function RefundWizard(props: RefundWizardProps) {
 
           {step === 4 ? (
             <div className="flex flex-col gap-3.5">
-              <h2 className="text-lg font-semibold">Check and confirm</h2>
+              <h2 className="text-lg font-semibold">{t("Check and confirm")}</h2>
               <DetailList
                 items={[
-                  { label: "Tickets", value: chosen.map((t) => t.label).join(", ") || "—" },
-                  { label: "Reason", value: refundReasonLabels[values.reason] },
-                  { label: "Refund to", value: method.name },
-                  { label: "Arrives", value: method.time },
+                  { label: t("Tickets"), value: chosen.map((ticket) => ticket.label).join(", ") || "—" },
+                  { label: t("Reason"), value: t(refundReasonLabels[values.reason]) },
+                  { label: t("Refund to"), value: method.name },
+                  { label: t("Arrives"), value: method.time },
                 ]}
               />
               <Controller
@@ -233,7 +254,7 @@ export function RefundWizard(props: RefundWizardProps) {
                 render={({ field }) => (
                   <CheckboxField
                     tone="warning"
-                    label="I understand that once the refund is approved these tickets are cancelled and their QR codes stop working."
+                    label={t("I understand that once the refund is approved these tickets are cancelled and their QR codes stop working.")}
                     checked={field.value === true}
                     onCheckedChange={(on) => field.onChange(on ? true : undefined)}
                   />
@@ -248,57 +269,64 @@ export function RefundWizard(props: RefundWizardProps) {
                 <Check className="size-[38px] text-white" strokeWidth={2.5} />
               </span>
               <div className="flex flex-col gap-1.5">
-                <h2 className="font-ticket text-[30px] font-black uppercase">Request sent</h2>
+                <h2 className="font-ticket text-[30px] font-black uppercase">{t("Request sent")}</h2>
                 <span className="text-[15px] text-sub">
-                  Reference <span className="font-mono text-ink">{result?.reference ?? "—"}</span> · we&apos;ll update you by SMS and email
+                  {t("Reference")} <span className="font-mono text-ink">{result?.reference ?? "—"}</span> ·{" "}
+                  {t("we'll update you by SMS and email")}
                 </span>
               </div>
               {result ? <RefundTracker steps={result.steps} /> : null}
               <div className="flex flex-wrap justify-center gap-2.5">
                 <LinkButton href={trackHref} variant="primary" size="xl">
-                  Track refund
+                  {t("Track refund")}
                 </LinkButton>
                 <LinkButton href={ticketsHref} variant="outline" size="xl" className="font-medium">
-                  Back to my tickets
+                  {t("Back to my tickets")}
                 </LinkButton>
               </div>
             </div>
           ) : null}
 
-          {serverError && step === 4 ? <Notice tone="danger">{serverError}</Notice> : null}
+          {serverError && step === 4 ? <Notice tone="danger">{t(serverError)}</Notice> : null}
 
           {step < 5 ? (
             <div className="flex items-center justify-between gap-3 border-t border-line pt-[18px]">
               <Button variant="outline" size="lg" onClick={back} disabled={step === 1}>
-                Back
+                {t("Back")}
               </Button>
-              <span role="alert" className="flex-1 text-right text-[13px] text-rose-ink">
+              <span role="alert" className="flex-1 text-end text-[13px] text-rose-ink">
                 {blockMsg}
               </span>
-              <Button variant="pitch" size="lg" onClick={next} loading={submitting} loadingText="Submitting…">
-                {step === 4 ? "Submit refund request" : "Continue"}
+              <Button variant="pitch" size="lg" onClick={next} loading={submitting} loadingText={t("Submitting…")}>
+                {step === 4 ? t("Submit refund request") : t("Continue")}
               </Button>
             </div>
           ) : null}
         </section>
 
         <aside
-          aria-label="Refund summary"
+          aria-label={t("Refund summary")}
           className="flex min-w-[min(100%,300px)] flex-[0_1_380px] flex-col gap-2.5 rounded-2xl border border-line bg-white p-[22px] lg:sticky lg:top-6"
         >
-          <h2 className="text-lg font-semibold">Refund summary</h2>
-          <SummaryRow label={`Tickets (${chosen.length})`} amount={base} />
-          <SummaryRow label="Service fees (kept)" amount={options.serviceFeePerTicket * chosen.length} variant="muted" />
-          {bonus > 0 ? <SummaryRow label={`Credit bonus +${Math.round(method.bonusRate * 100)}%`} amount={bonus} variant="bonus" /> : null}
+          <h2 className="text-lg font-semibold">{t("Refund summary")}</h2>
+          <SummaryRow label={t("Tickets ({count})", { count: chosen.length })} amount={base} />
+          <SummaryRow label={t("Service fees (kept)")} amount={options.serviceFeePerTicket * chosen.length} variant="muted" />
+          {bonus > 0 ? (
+            <SummaryRow
+              label={t("Credit bonus +{percent}%", { percent: Math.round(method.bonusRate * 100) })}
+              amount={bonus}
+              variant="bonus"
+            />
+          ) : null}
           <div className="flex items-baseline justify-between border-t border-line pt-2.5">
-            <span className="font-semibold">You get back</span>
+            <span className="font-semibold">{t("You get back")}</span>
             <span className="font-ticket text-[28px] font-black" aria-live="polite">
-              {formatMoney(base + bonus)}
+              {f.money(base + bonus)}
             </span>
           </div>
-          <span className="text-[13px] text-muted-ink">To: {method.name}</span>
+          <span className="text-[13px] text-muted-ink">{t("To: {destination}", { destination: method.name })}</span>
           <p className="rounded-[10px] bg-paper p-3 text-[13px] leading-normal text-muted-ink">
-            Your tickets stay valid until the refund is approved. Can&apos;t make it but refund window closed? Use official resale.
+            {t("Your tickets stay valid until the refund is approved. Can't make it but refund window closed? Use official resale.")}
           </p>
         </aside>
       </div>
@@ -312,20 +340,21 @@ export const refundTrackerPropsSchema = z.object({ steps: refundSchema.shape.ste
 export type RefundTrackerProps = z.input<typeof refundTrackerPropsSchema>;
 
 const stepTone = {
-  done: { bar: "bg-pitch", text: "text-pitch", sr: "completed" },
-  current: { bar: "bg-gold", text: "text-ink", sr: "in progress" },
-  todo: { bar: "bg-line", text: "text-muted-ink", sr: "not started" },
-  failed: { bar: "bg-rose-ink", text: "text-rose-ink", sr: "stopped" },
+  done: { bar: "bg-pitch", text: "text-pitch", sr: msg("completed") },
+  current: { bar: "bg-gold", text: "text-ink", sr: msg("in progress") },
+  todo: { bar: "bg-line", text: "text-muted-ink", sr: msg("not started") },
+  failed: { bar: "bg-rose-ink", text: "text-rose-ink", sr: msg("stopped") },
 } as const;
 
 /** Organism · RefundTracker — Requested → Reviewing → Approved → Money sent. */
 export function RefundTracker(props: RefundTrackerProps) {
   validateProps("RefundTracker", refundTrackerPropsSchema, props);
   const { steps, className } = props;
+  const { t } = useI18n();
   return (
     <ol
-      aria-label="Refund progress"
-      className={cn("m-0 grid w-full list-none gap-2 p-0 text-left", className)}
+      aria-label={t("Refund progress")}
+      className={cn("m-0 grid w-full list-none gap-2 p-0 text-start", className)}
       style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))` }}
     >
       {steps.map((s) => (
@@ -337,7 +366,7 @@ export function RefundTracker(props: RefundTrackerProps) {
           <span aria-hidden="true" className={cn("h-1.5 rounded-[3px]", stepTone[s.state].bar)} />
           <strong className={stepTone[s.state].text}>
             {s.label}
-            <span className="sr-only"> ({stepTone[s.state].sr})</span>
+            <span className="sr-only"> ({t(stepTone[s.state].sr)})</span>
           </strong>
           <span className="text-muted-ink">{s.when}</span>
         </li>
@@ -365,15 +394,17 @@ const noteTone = { neutral: "bg-paper text-sub", success: "bg-mint text-pitch", 
 export function RefundStatusCard(props: RefundStatusCardProps) {
   validateProps("RefundStatusCard", refundStatusCardPropsSchema, props);
   const { refund, onCancel, cancelling, onSecondary, className } = props;
+  const { t, f } = useI18n();
   return (
     <article
       aria-labelledby={`refund-${refund.id}`}
       className={cn("flex flex-col gap-[18px] rounded-2xl border border-line bg-white p-5 sm:p-6", className)}
     >
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex flex-col gap-1">
+        {refund.imageUrl ? <Thumbnail src={refund.imageUrl} size="lg" className="max-sm:hidden" /> : null}
+        <div className="flex flex-1 flex-col gap-1">
           <Eyebrow size="sm" className="font-semibold">
-            {refund.reference} · Requested {refund.requestedLabel}
+            {refund.reference} · {t("Requested {when}", { when: refund.requestedLabel })}
           </Eyebrow>
           <h2 id={`refund-${refund.id}`} className="font-ticket text-2xl font-black uppercase">
             {refund.eventTitle}
@@ -384,7 +415,7 @@ export function RefundStatusCard(props: RefundStatusCardProps) {
           <Badge tone={statusTone[refund.status]} size="md">
             {refund.statusLabel}
           </Badge>
-          <span className="font-ticket text-[26px] font-black">{formatMoney(refund.amount)}</span>
+          <span className="font-ticket text-[26px] font-black">{f.money(refund.amount)}</span>
           <span className="text-[13px] text-muted-ink">{refund.destination}</span>
         </div>
       </div>
@@ -396,7 +427,7 @@ export function RefundStatusCard(props: RefundStatusCardProps) {
       <div className="flex flex-wrap gap-2">
         {refund.canCancel && onCancel ? (
           <Button variant="outline-danger" onClick={() => onCancel(refund.id)} loading={cancelling}>
-            Cancel request — keep my tickets
+            {t("Cancel request — keep my tickets")}
           </Button>
         ) : null}
         {onSecondary ? (
@@ -428,8 +459,9 @@ const policyTone = {
 export function RefundPolicyCards(props: RefundPolicyCardsProps) {
   validateProps("RefundPolicyCards", refundPolicyCardsPropsSchema, props);
   const { policies, className } = props;
+  const { t } = useI18n();
   return (
-    <section aria-label="Refund policies" className={cn("grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4", className)}>
+    <section aria-label={t("Refund policies")} className={cn("grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4", className)}>
       {policies.map((policy) => (
         <div key={policy.title} className={cn("flex flex-col gap-2 rounded-2xl p-[22px]", policyTone[policy.tone])}>
           <h2 className="font-ticket text-lg font-black uppercase">{policy.title}</h2>

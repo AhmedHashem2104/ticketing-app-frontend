@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { FeatureFlagsProvider, FeatureGate, useFeatureFlag } from "./client";
+import { HydrateFeatureFlags, FeatureGate, useFeatureFlag } from "./client";
 import { allFlagsOff, featureFlagNames, parseFeatureFlags } from "./schema";
 
 const configFile = path.join(__dirname, "../../config/feature-flags.json");
@@ -12,7 +12,7 @@ describe("feature flag configuration", () => {
     const flags = parseFeatureFlags(JSON.parse(readFileSync(configFile, "utf8")));
     expect(Object.keys(flags).sort()).toEqual([...featureFlagNames].sort());
     expect(flags.waitingRoom).toBe(true);
-    expect(flags.arabicLanguage).toBe(false);
+    expect(flags.arabicLanguage).toBe(true);
   });
 
   it("rejects unknown flags (typos) and missing flags", () => {
@@ -29,14 +29,14 @@ describe("feature flag configuration", () => {
   });
 });
 
-describe("FeatureFlagsProvider", () => {
+describe("feature flag store", () => {
   function Probe() {
     return <span>{useFeatureFlag("resale") ? "resale on" : "resale off"}</span>;
   }
 
   it("exposes flags to hooks and gates", () => {
     render(
-      <FeatureFlagsProvider flags={{ ...allFlagsOff, resale: true }}>
+      <HydrateFeatureFlags flags={{ ...allFlagsOff, resale: true }}>
         <Probe />
         <FeatureGate flag="resale">
           <p>Resell</p>
@@ -44,7 +44,7 @@ describe("FeatureFlagsProvider", () => {
         <FeatureGate flag="cinema" fallback={<p>No cinema</p>}>
           <p>Cinema</p>
         </FeatureGate>
-      </FeatureFlagsProvider>,
+      </HydrateFeatureFlags>,
     );
     expect(screen.getByText("resale on")).toBeInTheDocument();
     expect(screen.getByText("Resell")).toBeInTheDocument();
@@ -52,7 +52,7 @@ describe("FeatureFlagsProvider", () => {
     expect(screen.getByText("No cinema")).toBeInTheDocument();
   });
 
-  it("defaults every flag to off without a provider", () => {
+  it("defaults every flag to off before the server's flags are applied", () => {
     render(<Probe />);
     expect(screen.getByText("resale off")).toBeInTheDocument();
   });

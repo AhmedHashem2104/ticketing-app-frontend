@@ -1,27 +1,22 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  checkoutFormSchema,
-  formatAmount,
-  formatMoney,
-  holdSchema,
-  orderSchema,
-  paymentMethodSchema,
-  promoRequestSchema,
-  type PaymentMethod,
-} from "@repo/contracts";
+import { checkoutFormSchema, holdSchema, orderSchema, paymentMethodSchema, promoRequestSchema, type PaymentMethod } from "@repo/contracts";
+import { msg } from "@repo/i18n";
 import { Check, Loader2, Lock, ReceiptText, X } from "lucide-react";
 import { useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 import { Button, LinkButton } from "../atoms/Button";
+import { CoverImage } from "../atoms/Media";
 import { Input, RadioGroup } from "../atoms/FormControls";
 import { Eyebrow, Heading } from "../atoms/Typography";
 import { HolderRow, Notice, NumberedStep } from "../molecules/Content";
 import { CheckboxField, Field, OptionCard } from "../molecules/Form";
-import { dayLabel, timeLabel } from "../lib/datetime";
 import { validateProps, zClassName, zFn, zHref, zNode } from "../lib/props";
 import { themeSurface } from "../lib/theme";
 import { cn } from "../lib/utils";
+import { DevAutofillButton } from "../atoms/DevAutofill";
+import { devSamples, fillForm } from "../lib/dev-samples";
+import { useI18n } from "../lib/provider";
 
 /* ---------- CheckoutForm ---------- */
 
@@ -68,29 +63,30 @@ export type CheckoutFormProps = z.input<typeof checkoutFormPropsSchema>;
 const METHODS: { id: PaymentMethod; name: string; note: string; info?: string }[] = [
   {
     id: "card",
-    name: "Debit or credit card",
-    note: "Visa, Mastercard, Meeza",
-    info: "You’ll enter your card on our payment provider’s secure page, then come straight back here.",
+    name: msg("Debit or credit card"),
+    note: msg("Visa, Mastercard, Meeza"),
+    info: msg("You’ll enter your card on our payment provider’s secure page, then come straight back here."),
   },
-  { id: "wallet", name: "Mobile wallet", note: "Pay from your phone wallet" },
+  { id: "wallet", name: msg("Mobile wallet"), note: msg("Pay from your phone wallet") },
   {
     id: "instapay",
-    name: "InstaPay",
-    note: "Instant bank transfer",
-    info: "You’ll approve the payment in your bank’s InstaPay app. Tickets are issued as soon as it arrives.",
+    name: msg("InstaPay"),
+    note: msg("Instant bank transfer"),
+    info: msg("You’ll approve the payment in your bank’s InstaPay app. Tickets are issued as soon as it arrives."),
   },
   {
     id: "fawry",
-    name: "Fawry reference",
-    note: "Pay cash at any Fawry outlet",
-    info: "We’ll give you a reference number and keep your tickets for 48 hours. They’re issued as soon as you pay.",
+    name: msg("Fawry reference"),
+    note: msg("Pay cash at any Fawry outlet"),
+    info: msg("We’ll give you a reference number and keep your tickets for 48 hours. They’re issued as soon as you pay."),
   },
 ];
 
 /** Organism · CheckoutForm — payment method, terms and pay action, validated with zod. */
 export function CheckoutForm(props: CheckoutFormProps) {
   validateProps("CheckoutForm", checkoutFormPropsSchema, props);
-  const { hold, onSubmit, submitting, serverError, promo, providerName = "our payment provider", className } = props;
+  const { t, f } = useI18n();
+  const { hold, onSubmit, submitting, serverError, promo, providerName = t("our payment provider"), className } = props;
   const form = useForm<CheckoutFlatValues, unknown, CheckoutSubmitValues>({
     resolver: zodResolver(checkoutFlatSchema),
     defaultValues: {
@@ -104,15 +100,15 @@ export function CheckoutForm(props: CheckoutFormProps) {
   const [promoError, setPromoError] = useState<string>();
   const method = useWatch({ control: form.control, name: "method" });
   const errors = form.formState.errors;
-  const total = formatMoney(hold.total);
+  const total = f.money(hold.total);
   const cta =
     method === "card"
-      ? `Pay ${total}`
+      ? t("Pay {total}", { total })
       : method === "wallet"
-        ? `Pay ${total} with wallet`
+        ? t("Pay {total} with wallet", { total })
         : method === "instapay"
-          ? `Pay ${total} with InstaPay`
-          : "Get Fawry reference";
+          ? t("Pay {total} with InstaPay", { total })
+          : t("Get Fawry reference");
 
   const applyPromo = async () => {
     const parsed = promoRequestSchema.safeParse({ code: promoCode });
@@ -131,38 +127,55 @@ export function CheckoutForm(props: CheckoutFormProps) {
       className={cn("flex flex-wrap items-start gap-7", className)}
     >
       <div className="flex min-w-[min(100%,560px)] flex-[1_1_620px] flex-col gap-5">
+        <DevAutofillButton
+          onFill={() => {
+            fillForm(form, { walletPhone: devSamples.walletPhone, acceptTerms: true });
+            if (promo) setPromoCode(devSamples.promoCode);
+          }}
+        />
         <Heading as="h1" size="2xl">
-          Checkout
+          {t("Checkout")}
         </Heading>
         <section aria-labelledby="holders-title" className="flex flex-col gap-2.5 rounded-2xl border border-line bg-white p-[22px]">
           <h2 id="holders-title" className="text-lg font-semibold">
             {hold.holdersTitle}
           </h2>
           {hold.holders.map((holder) => (
-            <HolderRow key={holder.name + holder.detail} initials={holder.initials} name={holder.name} detail={holder.detail} bordered />
+            <HolderRow
+              key={holder.name + holder.detail}
+              initials={holder.initials}
+              avatarUrl={holder.avatarUrl}
+              name={holder.name}
+              detail={holder.detail}
+              bordered
+            />
           ))}
           <p className="text-[13px] text-muted-ink">{hold.holdersNote}</p>
         </section>
         <fieldset className="m-0 flex flex-col gap-2.5 rounded-2xl border border-line bg-white p-[22px]">
-          <legend className="float-left pb-1.5 text-lg font-semibold">Pay with</legend>
+          <legend className="float-start pb-1.5 text-lg font-semibold">{t("Pay with")}</legend>
           <Controller
             control={form.control}
             name="method"
             render={({ field }) => (
               <RadioGroup
-                aria-label="Payment method"
+                aria-label={t("Payment method")}
                 value={field.value}
                 onValueChange={(v) => field.onChange(v as PaymentMethod)}
                 className="clear-both gap-2.5"
               >
                 {METHODS.map((m) => (
-                  <OptionCard key={m.id} value={m.id} title={m.name} description={m.note} selected={field.value === m.id} size="lg">
+                  <OptionCard key={m.id} value={m.id} title={t(m.name)} description={t(m.note)} selected={field.value === m.id} size="lg">
                     {m.id === "wallet" ? (
-                      <Field label="Wallet phone number" error={errors.walletPhone?.message} hint="Egyptian mobile number, without +20">
+                      <Field
+                        label={t("Wallet phone number")}
+                        error={errors.walletPhone?.message}
+                        hint={t("Egyptian mobile number, without +20")}
+                      >
                         <Input type="tel" mono autoComplete="tel-national" placeholder="10 0000 0000" {...form.register("walletPhone")} />
                       </Field>
                     ) : m.info ? (
-                      <p className="text-sm leading-normal text-sub">{m.info}</p>
+                      <p className="text-sm leading-normal text-sub">{t(m.info)}</p>
                     ) : null}
                   </OptionCard>
                 ))}
@@ -171,14 +184,15 @@ export function CheckoutForm(props: CheckoutFormProps) {
           />
           <p className="flex items-center gap-2 pt-1 text-xs text-muted-ink">
             <Lock className="size-4" aria-hidden="true" />
-            Payments processed securely by {providerName}. Your card details never reach Matchpass.
+            {t("Payments processed securely by {provider}. Your card details never reach Matchpass.", { provider: providerName })}
           </p>
         </fieldset>
       </div>
 
-      <aside aria-label="Order summary" className="flex min-w-[min(100%,320px)] flex-[0_1_400px] flex-col gap-4 lg:sticky lg:top-6">
+      <aside aria-label={t("Order summary")} className="flex min-w-[min(100%,320px)] flex-[0_1_400px] flex-col gap-4 lg:sticky lg:top-6">
         <div className="overflow-hidden rounded-2xl border border-line bg-white">
-          <div className={cn("flex flex-col gap-1 px-[22px] py-[18px]", themeSurface[hold.theme])}>
+          <div className={cn("relative isolate flex flex-col gap-1 px-[22px] py-[18px]", themeSurface[hold.theme])}>
+            <CoverImage src={hold.imageUrl} theme={hold.theme} />
             <Eyebrow tone="gold" size="sm">
               {hold.eventTag}
             </Eyebrow>
@@ -186,11 +200,11 @@ export function CheckoutForm(props: CheckoutFormProps) {
             <span className="text-sm text-sand">{hold.eventMeta}</span>
           </div>
           <div className="flex flex-col gap-2.5 px-[22px] py-5">
-            <ul aria-label="Price breakdown" className="m-0 flex list-none flex-col gap-2.5 p-0">
+            <ul aria-label={t("Price breakdown")} className="m-0 flex list-none flex-col gap-2.5 p-0">
               {hold.lines.map((line) => (
                 <li key={line.label} className={cn("flex justify-between gap-3 text-[15px]", line.amount < 0 && "text-pitch")}>
                   <span>{line.label}</span>
-                  <span className="font-mono">{line.amount < 0 ? `− ${formatAmount(-line.amount)}` : formatAmount(line.amount)}</span>
+                  <span className="font-mono">{line.amount < 0 ? `− ${f.amount(-line.amount)}` : f.amount(line.amount)}</span>
                 </li>
               ))}
             </ul>
@@ -198,11 +212,11 @@ export function CheckoutForm(props: CheckoutFormProps) {
               <div className="flex flex-col gap-1 pt-1">
                 <div className="flex gap-2">
                   <label htmlFor="promo" className="sr-only">
-                    Promo code
+                    {t("Promo code")}
                   </label>
                   <Input
                     id="promo"
-                    placeholder="Promo code"
+                    placeholder={t("Promo code")}
                     value={promoCode}
                     onChange={(e) => setPromoCode(e.target.value)}
                     invalid={!!(promoError ?? promo.error)}
@@ -210,22 +224,22 @@ export function CheckoutForm(props: CheckoutFormProps) {
                     className="min-w-0 flex-1"
                   />
                   <Button variant="outline" onClick={applyPromo} loading={promo.pending}>
-                    Apply
+                    {t("Apply")}
                   </Button>
                 </div>
                 {(promoError ?? promo.error) ? (
                   <span id="promo-error" role="alert" className="text-[13px] text-rose-ink">
-                    {promoError ?? promo.error}
+                    {t(promoError ?? promo.error ?? "")}
                   </span>
                 ) : hold.promoCode ? (
                   <span role="status" className="flex items-center gap-1 text-[13px] font-semibold text-pitch">
-                    <Check className="size-3.5" aria-hidden="true" /> {hold.promoCode} applied
+                    <Check className="size-3.5" aria-hidden="true" /> {t("{code} applied", { code: hold.promoCode })}
                   </span>
                 ) : null}
               </div>
             ) : null}
             <div className="flex items-baseline justify-between border-t border-line pt-3">
-              <span className="font-semibold">Total (incl. VAT)</span>
+              <span className="font-semibold">{t("Total (incl. VAT)")}</span>
               <span className="font-display text-[34px] leading-none font-extrabold">{total}</span>
             </div>
             <Controller
@@ -233,15 +247,15 @@ export function CheckoutForm(props: CheckoutFormProps) {
               name="acceptTerms"
               render={({ field }) => (
                 <CheckboxField
-                  label="I agree to the terms of sale and the refund policy."
+                  label={t("I agree to the terms of sale and the refund policy.")}
                   checked={field.value}
                   onCheckedChange={field.onChange}
                   error={errors.acceptTerms?.message}
                 />
               )}
             />
-            {serverError ? <Notice tone="danger">{serverError}</Notice> : null}
-            <Button type="submit" variant="pitch" size="2xl" block loading={submitting} loadingText="Processing payment…">
+            {serverError ? <Notice tone="danger">{t(serverError)}</Notice> : null}
+            <Button type="submit" variant="pitch" size="2xl" block loading={submitting} loadingText={t("Processing payment…")}>
               {cta}
             </Button>
           </div>
@@ -267,6 +281,7 @@ export type OrderHeroProps = z.input<typeof orderHeroPropsSchema>;
 export function OrderHero(props: OrderHeroProps) {
   validateProps("OrderHero", orderHeroPropsSchema, props);
   const { title, reference, note, pending, className } = props;
+  const { t } = useI18n();
   return (
     <div className={cn("flex flex-col items-center gap-3.5 text-center", className)}>
       <span className={cn("flex size-20 items-center justify-center rounded-full", pending ? "bg-gold" : "bg-pitch")} aria-hidden="true">
@@ -276,7 +291,7 @@ export function OrderHero(props: OrderHeroProps) {
         {title}
       </Heading>
       <p className="text-[17px] text-sub">
-        Order <span className="font-mono text-ink">{reference}</span> · {note}
+        {t("Order")} <span className="font-mono text-ink">{reference}</span> · {note}
       </p>
     </div>
   );
@@ -298,7 +313,10 @@ export function OrderPaymentStatus(props: OrderPaymentStatusProps) {
   validateProps("OrderPaymentStatus", orderPaymentStatusPropsSchema, props);
   const { order, retryHref, eventHref, className } = props;
   const { payment } = order;
-  const deadline = payment.expiresAt ? `${dayLabel(payment.expiresAt)} at ${timeLabel(payment.expiresAt)}` : undefined;
+  const { t, f } = useI18n();
+  const deadline = payment.expiresAt
+    ? t("{day} at {time}", { day: f.dayLabel(payment.expiresAt), time: f.timeLabel(payment.expiresAt) })
+    : undefined;
 
   if (order.status === "payment_failed" || order.status === "expired") {
     const failed = order.status === "payment_failed";
@@ -308,19 +326,21 @@ export function OrderPaymentStatus(props: OrderPaymentStatusProps) {
           <X className="size-10 text-rose-ink" strokeWidth={2.5} />
         </span>
         <Heading as="h1" id="payment-status-title" size="4xl">
-          {failed ? "Payment didn’t go through" : "This order expired"}
+          {failed ? t("Payment didn’t go through") : t("This order expired")}
         </Heading>
         <p className="text-[17px] text-sub">
-          Order <span className="font-mono text-ink">{order.reference}</span> ·{" "}
-          {failed ? (payment.failureReason ?? "You haven’t been charged.") : "It wasn’t paid in time, so the tickets went back on sale."}
+          {t("Order")} <span className="font-mono text-ink">{order.reference}</span> ·{" "}
+          {failed
+            ? t(payment.failureReason ?? "You haven’t been charged.")
+            : t("It wasn’t paid in time, so the tickets went back on sale.")}
         </p>
         {failed && retryHref ? (
           <LinkButton href={retryHref} variant="pitch" size="xl">
-            Try paying again
+            {t("Try paying again")}
           </LinkButton>
         ) : eventHref ? (
           <LinkButton href={eventHref} variant="primary" size="xl">
-            Choose tickets again
+            {t("Choose tickets again")}
           </LinkButton>
         ) : null}
       </section>
@@ -339,31 +359,31 @@ export function OrderPaymentStatus(props: OrderPaymentStatusProps) {
         )}
       </span>
       <Heading as="h1" id="payment-status-title" size="4xl">
-        {isFawry ? "Almost there" : isCard ? "Finish paying by card" : "Waiting for your payment"}
+        {isFawry ? t("Almost there") : isCard ? t("Finish paying by card") : t("Waiting for your payment")}
       </Heading>
       <p className="text-[17px] text-sub">
-        Order <span className="font-mono text-ink">{order.reference}</span> · {formatMoney(order.total)}
+        {t("Order")} <span className="font-mono text-ink">{order.reference}</span> · {f.money(order.total)}
       </p>
       {isFawry && payment.reference ? (
         <div className="flex w-full flex-col gap-1 rounded-2xl border border-line bg-white p-6">
-          <span className="text-sm text-muted-ink">Fawry reference</span>
+          <span className="text-sm text-muted-ink">{t("Fawry reference")}</span>
           <span className="font-mono text-[34px] font-bold tracking-[0.12em]">{payment.reference}</span>
-          {deadline ? <span className="text-sm text-sub">Pay before {deadline}</span> : null}
+          {deadline ? <span className="text-sm text-sub">{t("Pay before {deadline}", { deadline })}</span> : null}
         </div>
       ) : null}
       {payment.instructions ? (
-        <Notice tone="info" className="w-full text-left">
+        <Notice tone="info" className="w-full text-start">
           {payment.instructions}
         </Notice>
       ) : null}
       {isCard && payment.redirectUrl ? (
         <Button asChild variant="pitch" size="xl">
-          <a href={payment.redirectUrl}>Continue to secure payment</a>
+          <a href={payment.redirectUrl}>{t("Continue to secure payment")}</a>
         </Button>
       ) : null}
       {!isFawry && !isCard ? (
         <p role="status" className="text-sm text-muted-ink">
-          This page updates by itself once the payment arrives.
+          {t("This page updates by itself once the payment arrives.")}
         </p>
       ) : null}
     </section>
@@ -377,9 +397,14 @@ export type OrderSummaryStripProps = z.input<typeof orderSummaryStripPropsSchema
 export function OrderSummaryStrip(props: OrderSummaryStripProps) {
   validateProps("OrderSummaryStrip", orderSummaryStripPropsSchema, props);
   const { order, className } = props;
+  const { t, f } = useI18n();
   return (
-    <section aria-label="Order details" className={cn("flex flex-wrap overflow-hidden rounded-2xl border border-line bg-white", className)}>
-      <div className={cn("flex flex-[1_1_320px] flex-col gap-2 p-[26px]", themeSurface[order.theme])}>
+    <section
+      aria-label={t("Order details")}
+      className={cn("flex flex-wrap overflow-hidden rounded-2xl border border-line bg-white", className)}
+    >
+      <div className={cn("relative isolate flex flex-[1_1_320px] flex-col gap-2 p-[26px]", themeSurface[order.theme])}>
+        <CoverImage src={order.imageUrl} theme={order.theme} />
         <Eyebrow tone="gold" size="sm">
           {order.eventTag}
         </Eyebrow>
@@ -399,13 +424,13 @@ export function OrderSummaryStrip(props: OrderSummaryStripProps) {
         ))}
         {order.payment.reference ? (
           <li className="flex justify-between gap-2 text-[15px]">
-            <span>Fawry reference</span>
+            <span>{t("Fawry reference")}</span>
             <span className="font-mono font-semibold">{order.payment.reference}</span>
           </li>
         ) : null}
         <li className={cn("flex justify-between gap-2 text-[15px]", order.tickets.length > 0 && "border-t border-line pt-3")}>
           <span>{order.paymentLabel}</span>
-          <span className="font-mono font-semibold">{formatMoney(order.total)}</span>
+          <span className="font-mono font-semibold">{f.money(order.total)}</span>
         </li>
       </ul>
     </section>
@@ -422,10 +447,11 @@ export type NextStepsProps = z.input<typeof nextStepsPropsSchema>;
 export function NextSteps(props: NextStepsProps) {
   validateProps("NextSteps", nextStepsPropsSchema, props);
   const { steps, className } = props;
+  const { t } = useI18n();
   return (
     <section aria-labelledby="next-title" className={cn("flex flex-col gap-3", className)}>
       <Heading id="next-title" size="lg">
-        What happens next
+        {t("What happens next")}
       </Heading>
       <ol className="m-0 grid list-none grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3 p-0">
         {steps.map((step, i) => (
@@ -455,7 +481,8 @@ export type UpsellBannerProps = z.input<typeof upsellBannerPropsSchema>;
 /** Organism · UpsellBanner — e.g. "Add parking for this match". */
 export function UpsellBanner(props: UpsellBannerProps) {
   validateProps("UpsellBanner", upsellBannerPropsSchema, props);
-  const { title, detail, actionLabel, onAction, done, doneLabel = "Added", className } = props;
+  const { t } = useI18n();
+  const { title, detail, actionLabel, onAction, done, doneLabel = t("Added"), className } = props;
   return (
     <section
       aria-label={title}

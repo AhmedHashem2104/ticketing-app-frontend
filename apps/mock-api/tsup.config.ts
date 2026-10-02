@@ -8,6 +8,6 @@ export default defineConfig({
   outDir: "dist",
   clean: true,
   sourcemap: true,
-  // Bundle the workspace contracts package (TypeScript source) into the output.
-  noExternal: ["@repo/contracts"],
+  // Bundle the workspace packages (TypeScript source) into the output.
+  noExternal: ["@repo/contracts", "@repo/i18n"],
 });

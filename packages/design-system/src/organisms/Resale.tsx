@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  formatMoney,
   payoutMethodSchema,
   RESALE_MIN_PRICE,
   resaleListingRequestSchema,
@@ -19,6 +18,9 @@ import { ListingRow, Notice, NumberedStep } from "../molecules/Content";
 import { Field, OptionCard } from "../molecules/Form";
 import { validateProps, zClassName, zFn } from "../lib/props";
 import { cn } from "../lib/utils";
+import { DevAutofillButton } from "../atoms/DevAutofill";
+import { devSamples, fillForm } from "../lib/dev-samples";
+import { useI18n } from "../lib/provider";
 
 /* ---------- ResaleForm ---------- */
 
@@ -51,6 +53,7 @@ export function ResaleForm(props: ResaleFormProps) {
   const max = ticket.price;
   const min = Math.min(RESALE_MIN_PRICE, max);
   const quote = resaleQuote(price);
+  const { t, f } = useI18n();
 
   useEffect(() => {
     // Selecting another ticket resets the price to its face value.
@@ -63,16 +66,26 @@ export function ResaleForm(props: ResaleFormProps) {
       onSubmit={form.handleSubmit((values) => onSubmit(values))}
       className={cn("flex flex-col gap-[18px] rounded-2xl border border-line bg-white p-5 sm:p-[22px]", className)}
     >
-      <Field label="Ticket to sell" labelSize="md" error={form.formState.errors.ticketId?.message}>
+      <DevAutofillButton
+        onFill={() => {
+          const payout = payoutOptions.find((o) => o.id === "bank") ?? payoutOptions[0]!;
+          fillForm(form, {
+            price: Math.max(min, max - 10),
+            payoutMethod: payout.id,
+            ...(payout.id === "bank" ? { iban: devSamples.iban } : {}),
+          });
+        }}
+      />
+      <Field label={t("Ticket to sell")} labelSize="md" error={form.formState.errors.ticketId?.message}>
         <NativeSelect options={tickets.map((t) => ({ value: t.id, label: t.label }))} {...form.register("ticketId")} />
       </Field>
       <div className="flex flex-col gap-2.5">
         <div className="flex items-baseline justify-between">
           <label id="price-label" htmlFor="resale-price" className="text-[15px] font-semibold">
-            Your price
+            {t("Your price")}
           </label>
           <span className="font-display text-[40px] font-extrabold" aria-hidden="true">
-            {formatMoney(price)}
+            {f.money(price)}
           </span>
         </div>
         <Controller
@@ -82,7 +95,7 @@ export function ResaleForm(props: ResaleFormProps) {
             <Slider
               id="resale-price"
               aria-labelledby="price-label"
-              aria-valuetext={formatMoney(field.value)}
+              aria-valuetext={f.money(field.value)}
               min={min}
               max={max}
               step={5}
@@ -93,37 +106,37 @@ export function ResaleForm(props: ResaleFormProps) {
           )}
         />
         <div className="flex justify-between text-[13px] text-muted-ink">
-          <span>{formatMoney(min)}</span>
-          <span>Max {formatMoney(max)} — the face value</span>
+          <span>{f.money(min)}</span>
+          <span>{t("Max {amount} — the face value", { amount: f.money(max) })}</span>
         </div>
         {form.formState.errors.price ? (
           <span role="alert" className="text-[13px] text-rose-ink">
-            {form.formState.errors.price.message}
+            {t(form.formState.errors.price.message ?? "")}
           </span>
         ) : null}
       </div>
       <dl className="m-0 flex flex-col gap-2 rounded-xl bg-paper p-4 text-[15px]" aria-live="polite">
         <div className="flex justify-between">
-          <dt>Buyer pays</dt>
-          <dd className="m-0 font-mono">{formatMoney(quote.price)}</dd>
+          <dt>{t("Buyer pays")}</dt>
+          <dd className="m-0 font-mono">{f.money(quote.price)}</dd>
         </div>
         <div className="flex justify-between">
-          <dt>Resale fee (5%)</dt>
-          <dd className="m-0 font-mono">− {formatMoney(quote.fee)}</dd>
+          <dt>{t("Resale fee (5%)")}</dt>
+          <dd className="m-0 font-mono">− {f.money(quote.fee)}</dd>
         </div>
         <div className="flex justify-between border-t border-line pt-2 font-semibold">
-          <dt>You receive</dt>
-          <dd className="m-0 font-mono text-pitch">{formatMoney(quote.payout)}</dd>
+          <dt>{t("You receive")}</dt>
+          <dd className="m-0 font-mono text-pitch">{f.money(quote.payout)}</dd>
         </div>
       </dl>
       <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
-        <legend className="pb-2 text-[15px] font-semibold">Get paid to</legend>
+        <legend className="pb-2 text-[15px] font-semibold">{t("Get paid to")}</legend>
         <Controller
           control={form.control}
           name="payoutMethod"
           render={({ field }) => (
             <RadioGroup
-              aria-label="Get paid to"
+              aria-label={t("Get paid to")}
               value={field.value}
               onValueChange={(v) => field.onChange(v as PayoutMethod)}
               className="gap-2"
@@ -137,7 +150,7 @@ export function ResaleForm(props: ResaleFormProps) {
                   selected={field.value === option.id}
                 >
                   {option.id === "bank" ? (
-                    <Field label="IBAN" error={form.formState.errors.iban?.message} hint="EG followed by 27 digits">
+                    <Field label={t("IBAN")} error={form.formState.errors.iban?.message} hint={t("EG followed by 27 digits")}>
                       <Input mono autoComplete="off" placeholder="EG38 0019 0005 0000 0000 2631 8000 2" {...form.register("iban")} />
                     </Field>
                   ) : null}
@@ -147,9 +160,9 @@ export function ResaleForm(props: ResaleFormProps) {
           )}
         />
       </fieldset>
-      {serverError ? <Notice tone="danger">{serverError}</Notice> : null}
-      <Button type="submit" variant="pitch" size="xl" block loading={submitting} loadingText="Listing…">
-        List ticket for {formatMoney(price)}
+      {serverError ? <Notice tone="danger">{t(serverError)}</Notice> : null}
+      <Button type="submit" variant="pitch" size="xl" block loading={submitting} loadingText={t("Listing…")}>
+        {t("List ticket for {amount}", { amount: f.money(price) })}
       </Button>
     </form>
   );
@@ -164,10 +177,11 @@ export type ResaleInfoPanelProps = z.input<typeof resaleInfoPanelPropsSchema>;
 export function ResaleInfoPanel(props: ResaleInfoPanelProps) {
   validateProps("ResaleInfoPanel", resaleInfoPanelPropsSchema, props);
   const { steps, className } = props;
+  const { t } = useI18n();
   return (
     <section aria-labelledby="resale-how" className={cn("flex flex-col gap-3.5 rounded-2xl bg-ink p-6 text-white", className)}>
       <Heading id="resale-how" size="md">
-        How official resale works
+        {t("How official resale works")}
       </Heading>
       <ol className="m-0 flex list-none flex-col gap-3.5 p-0">
         {steps.map((step, i) => (
@@ -197,22 +211,24 @@ export type ListingsCardProps = z.input<typeof listingsCardPropsSchema>;
 export function ListingsCard(props: ListingsCardProps) {
   validateProps("ListingsCard", listingsCardPropsSchema, props);
   const { listings, onWithdraw, withdrawingId, className } = props;
+  const { t } = useI18n();
   return (
     <section
       aria-labelledby="listings-title"
       className={cn("flex flex-col gap-2.5 rounded-2xl border border-line bg-white p-[22px]", className)}
     >
       <h2 id="listings-title" className="text-[17px] font-semibold">
-        Your listings
+        {t("Your listings")}
       </h2>
-      {listings.length === 0 ? <p className="text-sm text-muted-ink">You haven&apos;t listed any tickets yet.</p> : null}
+      {listings.length === 0 ? <p className="text-sm text-muted-ink">{t("You haven't listed any tickets yet.")}</p> : null}
       <ul className="m-0 flex list-none flex-col gap-2.5 p-0">
         {listings.map((listing) => (
           <li key={listing.id}>
             <ListingRow
               title={listing.title}
               detail={listing.detail}
-              status={listing.status === "sold" ? "Sold" : "Listed"}
+              imageUrl={listing.imageUrl}
+              status={listing.status === "sold" ? t("Sold") : t("Listed")}
               tone={listing.status === "sold" ? "success" : "warning"}
               action={
                 listing.status === "listed" && onWithdraw ? (
@@ -221,9 +237,9 @@ export function ListingsCard(props: ListingsCardProps) {
                     size="sm"
                     onClick={() => onWithdraw(listing.id)}
                     loading={withdrawingId === listing.id}
-                    aria-label={`Withdraw ${listing.title}`}
+                    aria-label={t("Withdraw {title}", { title: listing.title })}
                   >
-                    Withdraw
+                    {t("Withdraw")}
                   </Button>
                 ) : undefined
               }

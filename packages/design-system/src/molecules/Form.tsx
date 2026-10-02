@@ -2,9 +2,10 @@ import { Minus, Plus, Search } from "lucide-react";
 import { useId, useRef, type ClipboardEvent, type KeyboardEvent } from "react";
 import { z } from "zod";
 import { Checkbox, RadioItem } from "../atoms/FormControls";
-import { FieldContext, type FieldControlProps } from "../lib/field-context";
+import { wireFieldControl, type FieldControlProps } from "../lib/field-control";
 import { validateProps, zClassName, zFn, zNode } from "../lib/props";
 import { cn } from "../lib/utils";
+import { useI18n } from "../lib/provider";
 
 /* ---------- Field ---------- */
 
@@ -29,6 +30,7 @@ export type FieldProps = z.input<typeof fieldPropsSchema>;
 export function Field(props: FieldProps) {
   validateProps("Field", fieldPropsSchema, props);
   const { label, children, hint, error, required, optionalLabel, id: idProp, labelSize = "sm", className } = props;
+  const { t } = useI18n();
   const autoId = useId();
   const id = idProp ?? `field-${autoId}`;
   const hintId = hint ? `${id}-hint` : undefined;
@@ -45,7 +47,7 @@ export function Field(props: FieldProps) {
         {label}
         {optionalLabel ? <span className="font-normal text-muted-ink"> {optionalLabel}</span> : null}
       </label>
-      <FieldContext.Provider value={control}>{children}</FieldContext.Provider>
+      {wireFieldControl(children, control)}
       {hint ? (
         <span id={hintId} className="text-[13px] text-muted-ink">
           {hint}
@@ -53,7 +55,7 @@ export function Field(props: FieldProps) {
       ) : null}
       {error ? (
         <span id={errorId} role="alert" className="text-[13px] font-medium text-rose-ink">
-          {error}
+          {t(error)}
         </span>
       ) : null}
     </div>
@@ -80,6 +82,7 @@ export type CheckboxFieldProps = z.input<typeof checkboxFieldPropsSchema>;
 export function CheckboxField(props: CheckboxFieldProps) {
   validateProps("CheckboxField", checkboxFieldPropsSchema, props);
   const { label, checked, onCheckedChange, description, error, disabled, tone = "plain", id: idProp, className } = props;
+  const { t } = useI18n();
   const autoId = useId();
   const id = idProp ?? `check-${autoId}`;
   const errorId = error ? `${id}-error` : undefined;
@@ -107,7 +110,7 @@ export function CheckboxField(props: CheckboxFieldProps) {
       </div>
       {error ? (
         <span id={errorId} role="alert" className="text-[13px] font-medium text-rose-ink">
-          {error}
+          {t(error)}
         </span>
       ) : null}
     </div>
@@ -200,7 +203,7 @@ export function OptionCard(props: OptionCardProps) {
           </span>
         ) : null}
       </label>
-      {selected && children ? <div className="px-4 pb-4 sm:pl-[50px]">{children}</div> : null}
+      {selected && children ? <div className="px-4 pb-4 sm:ps-[50px]">{children}</div> : null}
     </div>
   );
 }
@@ -222,7 +225,8 @@ export type OtpInputProps = z.input<typeof otpInputPropsSchema>;
 /** Molecule · OtpInput — one box per digit with auto-advance, backspace and paste support. */
 export function OtpInput(props: OtpInputProps) {
   validateProps("OtpInput", otpInputPropsSchema, props);
-  const { value, onValueChange, length = 6, invalid, label = "Verification code", autoFocus, className } = props;
+  const { t } = useI18n();
+  const { value, onValueChange, length = 6, invalid, label = t("Verification code"), autoFocus, className } = props;
   const refs = useRef<(HTMLInputElement | null)[]>([]);
   const digits = Array.from({ length }, (_, i) => value[i] ?? "");
 
@@ -255,7 +259,7 @@ export function OtpInput(props: OtpInputProps) {
   return (
     <fieldset className={cn("m-0 border-0 p-0", className)}>
       <legend className="sr-only">{label}</legend>
-      <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${length}, minmax(0, 1fr))` }}>
+      <div dir="ltr" className="grid gap-2" style={{ gridTemplateColumns: `repeat(${length}, minmax(0, 1fr))` }}>
         {digits.map((digit, index) => (
           <input
             // eslint-disable-next-line jsx-a11y/no-autofocus -- first box focuses when the step opens
@@ -268,7 +272,7 @@ export function OtpInput(props: OtpInputProps) {
             inputMode="numeric"
             autoComplete={index === 0 ? "one-time-code" : "off"}
             maxLength={1}
-            aria-label={`Digit ${index + 1}`}
+            aria-label={t("Digit {number}", { number: index + 1 })}
             aria-invalid={invalid || undefined}
             value={digit}
             onPaste={onPaste}
@@ -309,15 +313,16 @@ export type QuantityStepperProps = z.input<typeof quantityStepperPropsSchema>;
 export function QuantityStepper(props: QuantityStepperProps) {
   validateProps("QuantityStepper", quantityStepperPropsSchema, props);
   const { value, onValueChange, itemLabel, min = 0, max, className } = props;
+  const { t } = useI18n();
   const atMin = value <= min;
   const atMax = max !== undefined && value >= max;
   const button = "flex size-11 items-center justify-center rounded-lg border border-line bg-paper text-xl disabled:opacity-40";
   return (
-    <div role="group" aria-label={`${itemLabel} quantity`} className={cn("flex items-center gap-0.5", className)}>
+    <div role="group" aria-label={t("{item} quantity", { item: itemLabel })} className={cn("flex items-center gap-0.5", className)}>
       <button
         type="button"
         className={button}
-        aria-label={`One less ${itemLabel}`}
+        aria-label={t("One less {item}", { item: itemLabel })}
         disabled={atMin}
         onClick={() => onValueChange(value - 1)}
       >
@@ -329,7 +334,7 @@ export function QuantityStepper(props: QuantityStepperProps) {
       <button
         type="button"
         className={button}
-        aria-label={`One more ${itemLabel}`}
+        aria-label={t("One more {item}", { item: itemLabel })}
         disabled={atMax}
         onClick={() => onValueChange(value + 1)}
       >

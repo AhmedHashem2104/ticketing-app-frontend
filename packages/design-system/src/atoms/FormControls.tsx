@@ -6,7 +6,7 @@ import { Label as UILabel } from "../components/ui/label";
 import { RadioGroup as UIRadioGroup, RadioGroupItem as UIRadioGroupItem } from "../components/ui/radio-group";
 import { Slider as UISlider } from "../components/ui/slider";
 import { Textarea as UITextarea } from "../components/ui/textarea";
-import { useFieldControl } from "../lib/field-context";
+import { markFieldControl } from "../lib/field-control";
 import { validateProps, zClassName, zFn, zNode } from "../lib/props";
 import { cn } from "../lib/utils";
 
@@ -25,15 +25,7 @@ export type InputProps = Omit<ComponentProps<"input">, "type"> & z.input<typeof 
 export function Input(props: InputProps) {
   validateProps("Input", inputPropsSchema, props);
   const { invalid, mono, className, ...rest } = props;
-  const field = useFieldControl();
-  return (
-    <UIInput
-      {...field}
-      aria-invalid={invalid || field?.["aria-invalid"] || undefined}
-      className={cn(mono && "font-mono", className)}
-      {...rest}
-    />
-  );
+  return <UIInput aria-invalid={invalid || rest["aria-invalid"] || undefined} className={cn(mono && "font-mono", className)} {...rest} />;
 }
 
 /* ---------- Textarea ---------- */
@@ -45,8 +37,7 @@ export type TextareaProps = ComponentProps<"textarea"> & z.input<typeof textarea
 export function Textarea(props: TextareaProps) {
   validateProps("Textarea", textareaPropsSchema, props);
   const { invalid, ...rest } = props;
-  const field = useFieldControl();
-  return <UITextarea {...field} aria-invalid={invalid || field?.["aria-invalid"] || undefined} {...rest} />;
+  return <UITextarea aria-invalid={invalid || rest["aria-invalid"] || undefined} {...rest} />;
 }
 
 /* ---------- Label ---------- */
@@ -78,11 +69,9 @@ export type CheckboxProps = Omit<ComponentProps<typeof UICheckbox>, "onCheckedCh
 export function Checkbox(props: CheckboxProps) {
   validateProps("Checkbox", checkboxPropsSchema, props);
   const { onCheckedChange, invalid, ...rest } = props;
-  const field = useFieldControl();
   return (
     <UICheckbox
-      {...field}
-      aria-invalid={invalid || field?.["aria-invalid"] || undefined}
+      aria-invalid={invalid || rest["aria-invalid"] || undefined}
       onCheckedChange={(value) => onCheckedChange?.(value === true)}
       {...rest}
     />
@@ -133,11 +122,9 @@ export type NativeSelectProps = Omit<ComponentProps<"select">, "children"> & z.i
 export function NativeSelect(props: NativeSelectProps) {
   validateProps("NativeSelect", nativeSelectPropsSchema, props);
   const { options, invalid, className, ...rest } = props;
-  const field = useFieldControl();
   return (
     <select
-      {...field}
-      aria-invalid={invalid || field?.["aria-invalid"] || undefined}
+      aria-invalid={invalid || rest["aria-invalid"] || undefined}
       className={cn(
         "h-12 w-full rounded-lg border border-input bg-white px-3 text-[15px] text-ink outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-invalid:border-2 aria-invalid:border-destructive",
         className,
@@ -189,3 +176,8 @@ export function Slider(props: SliderProps) {
     />
   );
 }
+
+markFieldControl(Input);
+markFieldControl(Textarea);
+markFieldControl(Checkbox);
+markFieldControl(NativeSelect);

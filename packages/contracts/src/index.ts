@@ -6,3 +6,4 @@ export * from "./queue";
 export * from "./commerce";
 export * from "./format";
 export * from "./datetime";
+export * from "./staff";

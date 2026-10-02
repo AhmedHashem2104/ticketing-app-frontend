@@ -304,6 +304,17 @@ describe("orders and payments", () => {
     return { ...ctx, token, hold: hold.body };
   }
 
+  it("offers test-card autofill on the hosted page outside production", async () => {
+    const { api, auth, token, hold } = await holdDerby();
+    const res = await api.post("/api/orders").set(auth(token)).send({ holdId: hold.id, payment: CARD, acceptTerms: true }).expect(201);
+    const url = res.body.payment.redirectUrl as string;
+    expect((await api.get(url).expect(200)).text).toContain('href="?autofill=success"');
+    const filled = await api.get(`${url}?autofill=success`).expect(200);
+    expect(filled.text).toContain('value="4242 4242 4242 4242"');
+    expect(filled.text).toContain('value="123"');
+    expect((await api.get(`${url}?autofill=bogus`).expect(200)).text).not.toContain('value="4242');
+  });
+
   it("sends card payments to the provider's hosted page, then issues tickets", async () => {
     const { api, auth, token, hold } = await holdDerby();
     const res = await api.post("/api/orders").set(auth(token)).send({ holdId: hold.id, payment: CARD, acceptTerms: true }).expect(201);

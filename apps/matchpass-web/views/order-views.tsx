@@ -1,9 +1,10 @@
 "use client";
 
 import type { Hold, Order } from "@repo/contracts";
-import { CheckoutPage, MessagePage, OrderConfirmationPage } from "@repo/design-system";
+import { CheckoutPage, MessagePage, OrderConfirmationPage, useI18n } from "@repo/design-system";
+import { msg } from "@repo/i18n";
 import { useQueryClient } from "@tanstack/react-query";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AppFooter, AppHeader } from "@/components/app-chrome";
 import { errorMessage, toApiError } from "@/lib/api/client";
@@ -13,6 +14,7 @@ import { useFeatureFlags } from "@/lib/feature-flags/client";
 import { useApplyPromo, useCreateOrder, useHold, useOrder } from "@/lib/queries";
 import { routes } from "@/lib/routes";
 import { PageError, PageLoading } from "./shared";
+import { useLocalizedRouter } from "@/lib/i18n/navigation";
 
 const navFor = (kind: Hold["eventKind"]) => (kind === "match" ? "matches" : kind === "cinema" ? "cinema" : "concerts");
 
@@ -25,16 +27,20 @@ export function CheckoutView({ holdId }: { holdId: string }) {
 function Checkout({ holdId }: { holdId: string }) {
   const hold = useHold(holdId);
   const [expired, setExpired] = useState(false);
-  if (hold.isPending) return <PageLoading label="Loading your order" />;
+  const { t } = useI18n();
+  if (hold.isPending) return <PageLoading label={t("Loading your order")} />;
   const expiredError = hold.isError && ["HOLD_EXPIRED", "NOT_FOUND"].includes(toApiError(hold.error).code);
   if (expired || expiredError) {
     return (
       <MessagePage
         header={<AppHeader />}
         footer={<AppFooter />}
-        title="Your hold has ended"
-        body="We held your tickets for 10 minutes. They've gone back on sale — choose again to continue."
-        action={{ label: hold.data ? "Choose tickets again" : "Browse events", href: hold.data ? hold.data.backHref : routes.events() }}
+        title={t("Your hold has ended")}
+        body={t("We held your tickets for 10 minutes. They've gone back on sale — choose again to continue.")}
+        action={{
+          label: hold.data ? t("Choose tickets again") : t("Browse events"),
+          href: hold.data ? hold.data.backHref : routes.events(),
+        }}
       />
     );
   }
@@ -44,18 +50,20 @@ function Checkout({ holdId }: { holdId: string }) {
 
 /** Messages for fans sent back from the payment provider's hosted page. */
 const PAYMENT_RETURN: Record<string, string> = {
-  declined: "Your bank declined the payment. Try another card or payment method.",
-  cancelled: "Payment cancelled — you haven't been charged. Choose how you'd like to pay.",
-  expired: "That payment session expired. Please try again.",
+  declined: msg("Your bank declined the payment. Try another card or payment method."),
+  cancelled: msg("Payment cancelled — you haven't been charged. Choose how you'd like to pay."),
+  expired: msg("That payment session expired. Please try again."),
 };
 
 function CheckoutForHold({ hold, onExpire }: { hold: Hold; onExpire: () => void }) {
   const flags = useFeatureFlags();
-  const router = useRouter();
+  const router = useLocalizedRouter();
   const params = useSearchParams();
   const createOrder = useCreateOrder();
   const promo = useApplyPromo(hold.id);
-  const returned = PAYMENT_RETURN[params.get("payment") ?? ""];
+  const { t } = useI18n();
+  const returnKey = PAYMENT_RETURN[params.get("payment") ?? ""];
+  const returned = returnKey ? t(returnKey) : undefined;
   return (
     <CheckoutPage
       header={<AppHeader active={navFor(hold.eventKind)} />}
@@ -99,7 +107,8 @@ export function OrderView({ orderId }: { orderId: string }) {
 
 function OrderConfirmation({ orderId }: { orderId: string }) {
   const order = useOrder(orderId);
-  if (order.isPending) return <PageLoading label="Loading your order" />;
+  const { t } = useI18n();
+  if (order.isPending) return <PageLoading label={t("Loading your order")} />;
   if (order.isError) return <PageError error={order.error} onRetry={() => void order.refetch()} />;
   return <Confirmation order={order.data} />;
 }
@@ -108,6 +117,7 @@ function Confirmation({ order }: { order: Order }) {
   const flags = useFeatureFlags();
   const queryClient = useQueryClient();
   const [parkingAdded, setParkingAdded] = useState(false);
+  const { t, f } = useI18n();
 
   // When a pending payment completes, the new tickets should show up everywhere.
   useEffect(() => {
@@ -140,7 +150,7 @@ function Confirmation({ order }: { order: Order }) {
               )
           : undefined
       }
-      onDownloadReceipt={() => downloadFile(`${order.reference}-receipt.txt`, buildReceipt(order), "text/plain")}
+      onDownloadReceipt={() => downloadFile(`${order.reference}-receipt.txt`, buildReceipt(order, { t, f }), "text/plain")}
       parking={flags.parkingUpsell && order.parkingOffer ? { onAdd: () => setParkingAdded(true), added: parkingAdded } : undefined}
     />
   );

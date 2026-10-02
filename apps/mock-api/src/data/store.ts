@@ -15,6 +15,8 @@ import type {
 } from "@repo/contracts";
 import { dayjs, initialsOf } from "@repo/contracts";
 import { buildCatalog, EVENT_IDS } from "./catalog";
+import { avatarFor } from "./media";
+import { seedStaff, type StoredScan, type StoredStaff } from "./staff";
 import { addHours, dayLabel, hoursUntil, numericDateLabel, stubDateLabel, timeLabel, yearMonthCode } from "./time";
 
 /* ---------- Stored shapes (server-only fields stay out of API responses) ---------- */
@@ -26,9 +28,25 @@ export type StoredUser = Omit<User, "linkedFans" | "fanId"> & {
   password: string;
   fanId: FanIdStatus;
   fans: StoredFan[];
-  /** Approval time for a Fan ID under review (the KYC provider's answer, simulated). */
+  /** Approval time for a Fan ID under review (the KYC provider's answer, simulated). Unset = manual review. */
   fanIdReviewAt?: number;
   usedPromos: string[];
+  /** Suspended by an admin: can't sign in, existing sessions end. */
+  suspended?: boolean;
+  /** What the operations team reviews for a pending Fan ID. */
+  fanIdSubmission?: {
+    documentType: "national_id" | "passport";
+    nameEn: string;
+    nameAr: string;
+    idNumberMasked: string;
+    submittedAt: string;
+    documentImageUrl: string;
+    selfieImageUrl: string;
+    matchScore: number;
+    flags: string[];
+  };
+  /** Uploaded Fan ID photos (memory only), served to reviewers. */
+  fanIdFiles?: Partial<Record<"front" | "back" | "selfie", { type: string; data: Buffer }>>;
 };
 
 export type TicketSpec = {
@@ -59,7 +77,7 @@ export type StoredQueue = { id: string; userId: string; eventId: string; created
 
 export type Verification = { id: string; userId?: string; code: string; createdAt: number; attempts: number; purpose: "signup" | "reset" };
 
-export type StoredRefund = Refund & { userId: string; ticketIds: string[] };
+export type StoredRefund = Refund & { userId: string; ticketIds: string[]; requestedAt?: string };
 
 export type StoredListing = ResaleListing & { userId: string; eventId: string; faceValue: number; seatLabel: string };
 
@@ -103,6 +121,12 @@ export class Store {
   loginFailures = new Map<string, number[]>();
   /** Sold seat keys per event (and cinema showtime): `${eventId}` or `${eventId}:${showtimeId}`. */
   sold = new Map<string, Set<string>>();
+  /* Dashboard: staff accounts and their sessions, organiser requests, entry scans and the audit log. */
+  staff = new Map<string, StoredStaff>();
+  staffSessions = new Map<string, string>();
+  eventRequests = new Map<string, import("@repo/contracts").EventRequest>();
+  entryScans: StoredScan[] = [];
+  audit: import("@repo/contracts").AuditEntry[] = [];
   private counters = { order: 58_213, refund: 91, ticket: 61_100 };
 
   constructor(now: () => Date = () => new Date(), options: StoreOptions = {}) {
@@ -129,12 +153,18 @@ export class Store {
       this.notifications,
       this.loginFailures,
       this.sold,
+      this.staff,
+      this.staffSessions,
+      this.eventRequests,
     ]) {
       map.clear();
     }
+    this.entryScans = [];
+    this.audit = [];
     this.subscriptions.clear();
     this.counters = { order: 58_213, refund: 91, ticket: 61_100 };
     seed(this);
+    seedStaff(this);
   }
 
   /* ---------- ids ---------- */
@@ -199,28 +229,55 @@ export class Store {
   /** Resolves time-based state (e.g. a Fan ID review finishing) before a user is read. */
   refreshUser(user: StoredUser) {
     if (user.fanId.status === "pending" && user.fanIdReviewAt !== undefined && !dayjs(this.now()).isBefore(user.fanIdReviewAt)) {
+      this.approveFanId(user);
+    }
+    return user;
+  }
+
+  /** Issues the Fan ID (automatic check passed, or a reviewer approved it) and adds the fan as their own holder. */
+  approveFanId(user: StoredUser) {
+    {
       let number: string;
       do number = `2210 4417 ${randomInt(1000, 10_000)}`;
       while (this.userByFanNumber(digits(number)));
       user.fanId = { status: "approved", number, validUntil: dayjs(this.now()).add(3, "year").format("MMM YYYY"), nameEn: user.fullName };
       user.fanIdReviewAt = undefined;
+      user.fanIdSubmission = undefined;
+      user.fanIdFiles = undefined;
       const [first, last] = user.fullName.split(/\s+/);
       user.fans.unshift({
         id: this.id("fan"),
         name: last ? `${first} ${last[0]}. (you)` : `${first} (you)`,
         initials: user.initials,
+        ...(user.avatarUrl ? { avatarUrl: user.avatarUrl } : {}),
         fanIdMasked: `Fan ID •••• ${number.slice(-4)}`,
         status: "approved",
         isSelf: true,
         number: digits(number),
       });
-      this.notify(user.id, { kind: "fan_id", title: "Your Fan ID is approved", body: "You can now buy match tickets.", href: "/fan-id" });
+      this.notify(user.id, {
+        kind: "fan_id",
+        title: "Your Fan ID is approved",
+        body: "You can now buy match tickets.",
+        href: "/fan-id",
+        imageUrl: user.avatarUrl,
+      });
     }
     return user;
   }
 
   toUser(user: StoredUser): User {
-    const { phone: _p, password: _pw, fans, fanIdReviewAt: _r, usedPromos: _u, ...rest } = this.refreshUser(user);
+    const {
+      phone: _p,
+      password: _pw,
+      fans,
+      fanIdReviewAt: _r,
+      usedPromos: _u,
+      suspended: _s,
+      fanIdSubmission: _sub,
+      fanIdFiles: _files,
+      ...rest
+    } = this.refreshUser(user);
     return { ...rest, linkedFans: fans.map(({ number: _n, ...fan }) => fan) };
   }
 
@@ -230,9 +287,12 @@ export class Store {
 
   /* ---------- notifications ---------- */
 
-  notify(userId: string, n: Omit<Notification, "id" | "createdAt" | "read">) {
+  notify(
+    userId: string,
+    { imageUrl, ...n }: Omit<Notification, "id" | "createdAt" | "read" | "imageUrl"> & { imageUrl?: string | undefined },
+  ) {
     const id = this.id("ntf");
-    this.notifications.set(id, { ...n, id, userId, createdAt: this.now().toISOString(), read: false });
+    this.notifications.set(id, { ...n, ...(imageUrl ? { imageUrl } : {}), id, userId, createdAt: this.now().toISOString(), read: false });
   }
 
   /* ---------- holds ---------- */
@@ -294,7 +354,7 @@ export class Store {
     orderId: string,
     event: Pick<
       EventDetail,
-      "id" | "slug" | "kind" | "layout" | "theme" | "tag" | "title" | "startsAt" | "gatesOpenAt" | "doorsAt" | "venue"
+      "id" | "slug" | "kind" | "layout" | "theme" | "imageUrl" | "tag" | "title" | "startsAt" | "gatesOpenAt" | "doorsAt" | "venue"
     >,
     spec: TicketSpec,
     index: number,
@@ -312,6 +372,7 @@ export class Store {
       eventSlug: event.slug,
       eventKind: event.kind,
       theme: event.theme,
+      ...(event.imageUrl ? { imageUrl: event.imageUrl } : {}),
       variant: variantFor(event),
       status: "valid",
       kindLabel: event.tag.toUpperCase(),
@@ -333,6 +394,7 @@ export class Store {
       seatLabel: spec.seatLabel,
       holderName: spec.holderName,
       holderInitials: initialsOf(spec.holderName),
+      ...(avatarFor(spec.holderName) ? { holderAvatarUrl: avatarFor(spec.holderName) } : {}),
       holderDetail: spec.holderDetail,
       holderDate: numericDateLabel(event.startsAt),
       position: { index, of },
@@ -428,6 +490,7 @@ export class Store {
           title: "Your resale ticket sold",
           body: `${listing.title} sold for ${listing.price} EGP.`,
           href: "/resale",
+          imageUrl: listing.imageUrl,
         });
       }
     }
@@ -441,6 +504,7 @@ export class Store {
       title: "You're going!",
       body: `${order.eventTitle} · order ${order.reference}`,
       href: `/orders/${order.id}`,
+      imageUrl: order.imageUrl,
     });
     return order;
   }
@@ -491,7 +555,9 @@ export class Store {
         userId,
         ticketIds: tickets.map((t) => t.id),
         requestedLabel: "AUTOMATIC",
+        requestedAt: this.now().toISOString(),
         eventTitle: event.title,
+        ...(event.imageUrl ? { imageUrl: event.imageUrl } : {}),
         detail: `Event cancelled · ${tickets.length} ticket${tickets.length === 1 ? "" : "s"} · automatic refund`,
         amount,
         destination: "To your original payment method",
@@ -514,6 +580,7 @@ export class Store {
         title: `${event.title} has been cancelled`,
         body: "Your tickets were refunded in full, including fees.",
         href: "/refunds",
+        imageUrl: event.imageUrl,
       });
     }
     for (const listing of this.listings.values())
@@ -531,6 +598,7 @@ function seed(store: Store) {
     {
       id: "fan_omar",
       name: "Omar K. (you)",
+      avatarUrl: "/images/avatars/omar.jpg",
       initials: "OK",
       fanIdMasked: "Fan ID •••• 4821",
       status: "approved",
@@ -540,6 +608,7 @@ function seed(store: Store) {
     {
       id: "fan_youssef",
       name: "Youssef A.",
+      avatarUrl: "/images/avatars/youssef.jpg",
       initials: "YA",
       fanIdMasked: "Fan ID •••• 1907",
       status: "approved",
@@ -549,6 +618,7 @@ function seed(store: Store) {
     {
       id: "fan_mariam",
       name: "Mariam K.",
+      avatarUrl: "/images/avatars/mariam.jpg",
       initials: "MK",
       fanIdMasked: "Fan ID •••• 3350",
       status: "approved",
@@ -558,6 +628,7 @@ function seed(store: Store) {
     {
       id: "fan_hassan",
       name: "Hassan M.",
+      avatarUrl: "/images/avatars/hassan.jpg",
       initials: "HM",
       fanIdMasked: "Fan ID under review — can’t buy yet",
       status: "under_review",
@@ -567,6 +638,7 @@ function seed(store: Store) {
   store.users.set(omarId, {
     id: omarId,
     fullName: "Omar Khaled",
+    avatarUrl: "/images/avatars/omar.jpg",
     initials: "OK",
     phone: DEMO_USER.phone,
     phoneMasked: "+20 10•• ••• 482",
@@ -581,6 +653,7 @@ function seed(store: Store) {
   store.users.set(youssefId, {
     id: youssefId,
     fullName: "Youssef Adel",
+    avatarUrl: "/images/avatars/youssef.jpg",
     initials: "YA",
     phone: SECOND_USER.phone,
     phoneMasked: "+20 10•• ••• 432",
@@ -591,6 +664,7 @@ function seed(store: Store) {
       {
         id: "fan_youssef_self",
         name: "Youssef A. (you)",
+        avatarUrl: "/images/avatars/youssef.jpg",
         initials: "YA",
         fanIdMasked: "Fan ID •••• 1907",
         status: "approved",
@@ -607,6 +681,7 @@ function seed(store: Store) {
   store.users.set(sellerId, {
     id: sellerId,
     fullName: "Karim Nabil",
+    avatarUrl: "/images/avatars/karim.jpg",
     initials: "KN",
     phone: "1155555555",
     phoneMasked: "+20 11•• ••• 555",
@@ -616,6 +691,7 @@ function seed(store: Store) {
       {
         id: "fan_karim",
         name: "Karim N. (you)",
+        avatarUrl: "/images/avatars/karim.jpg",
         initials: "KN",
         fanIdMasked: "Fan ID •••• 5555",
         status: "approved",
@@ -701,7 +777,9 @@ function seed(store: Store) {
     userId: omarId,
     ticketIds: postponedOrder.tickets.map((t) => t.id),
     requestedLabel: "AUTOMATIC",
+    requestedAt: dayjs(now).subtract(2, "day").toISOString(),
     eventTitle: postponed.title,
+    imageUrl: postponed.imageUrl,
     detail: "Match postponed · 2 × Category 2 · automatic refund",
     amount: 330,
     destination: "To mobile wallet · received",
@@ -727,7 +805,9 @@ function seed(store: Store) {
     userId: omarId,
     ticketIds: [],
     requestedLabel: "21 SEP",
+    requestedAt: dayjs(now).subtract(10, "day").toISOString(),
     eventTitle: "The Last Lighthouse",
+    imageUrl: film.imageUrl,
     detail: "1 × Standard · Screen 4 · 21 Sep, 19:00",
     amount: 150,
     destination: "Requested to Matchpass credit",
@@ -751,6 +831,7 @@ function seed(store: Store) {
     eventId: EVENT_IDS.canalCup,
     ticketId: "tkt_history_canal",
     title: "Canal United vs Sinai Stars",
+    imageUrl: event(EVENT_IDS.canalCup).imageUrl,
     seatLabel: "N2 · Row C · Seat 4",
     faceValue: 50,
     price: 50,
@@ -775,6 +856,7 @@ function seed(store: Store) {
       eventId: soldOut.id,
       ticketId: t.id,
       title: `${soldOut.title} · ${stored.seatLabel}`,
+      imageUrl: soldOut.imageUrl,
       seatLabel: stored.seatLabel,
       faceValue: stored.price,
       price,
@@ -807,6 +889,7 @@ function seed(store: Store) {
     eventId: phil.id,
     ticketId: philTicket.id,
     title: `${phil.title} · ${philTicket.seatLabel}`,
+    imageUrl: phil.imageUrl,
     seatLabel: philTicket.seatLabel,
     faceValue: 600,
     price: 550,
@@ -820,6 +903,7 @@ function seed(store: Store) {
     title: "Delta SC vs Red Sea FC has been postponed",
     body: "Your 2 tickets were refunded in full, including fees.",
     href: "/refunds",
+    imageUrl: postponed.imageUrl,
   });
 }
 
@@ -883,6 +967,7 @@ function seedOrder(store: Store, userId: string, event: EventDetail, specs: Tick
     eventMeta: `${dayLabel(event.startsAt)} · ${timeLabel(event.startsAt)} · ${event.venue.name}`,
     eventKind: event.kind,
     theme: event.theme,
+    ...(event.imageUrl ? { imageUrl: event.imageUrl } : {}),
     entryNote: "",
     total: specs.reduce((sum, s) => sum + s.price + event.serviceFee, 0),
     paymentLabel: "Paid by card •••• 0042",

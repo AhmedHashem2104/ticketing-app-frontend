@@ -5,6 +5,8 @@ const config: StorybookConfig = {
   addons: ["@storybook/addon-docs", "@storybook/addon-a11y"],
   framework: { name: "@storybook/react-vite", options: {} },
   typescript: { reactDocgen: "react-docgen-typescript" },
+  // Seed imagery (event photos, crests, avatars) lives in the web app; fixtures reference it as /images/...
+  staticDirs: [{ from: "../../matchpass-web/public/images", to: "/images" }],
 };
 
 export default config;

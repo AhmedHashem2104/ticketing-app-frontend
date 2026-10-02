@@ -3,11 +3,12 @@
 import type { ClientSession, User } from "@repo/contracts";
 import { LoadingState } from "@repo/design-system";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, type ReactNode } from "react";
 import { configureAuth } from "../api/client";
 import { endpoints } from "../api/endpoints";
 import { queryKeys } from "../api/keys";
+import { useLocalizedRouter } from "@/lib/i18n/navigation";
 
 /* ---------- useAuth ---------- */
 
@@ -57,7 +58,7 @@ export function useAuth() {
 /** Redirects signed-out visitors to /login and returns them afterwards. */
 export function RequireAuth({ children }: { children: (user: User) => ReactNode }) {
   const auth = useAuth();
-  const router = useRouter();
+  const router = useLocalizedRouter();
   const pathname = usePathname();
   const search = useSearchParams();
 

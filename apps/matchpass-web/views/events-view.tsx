@@ -2,12 +2,13 @@
 
 import { citySchema, type City, type EventTab } from "@repo/contracts";
 import { EventsPage, type EventFilters } from "@repo/design-system";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { AppFooter, AppHeader } from "@/components/app-chrome";
 import { useFeatureFlags } from "@/lib/feature-flags/client";
 import { useEvents } from "@/lib/queries";
 import { eventHref } from "@/lib/routes";
+import { useLocalizedRouter } from "@/lib/i18n/navigation";
 
 const DEFAULT_FACETS: Record<EventTab, { categories: string[]; cities: City[] }> = {
   matches: {
@@ -26,7 +27,7 @@ const list = (value: string | null) => (value ? value.split(",").filter(Boolean)
 /** Browse page — all filter state lives in the URL so results are shareable and survive refresh. */
 export function EventsView() {
   const params = useSearchParams();
-  const router = useRouter();
+  const router = useLocalizedRouter();
   const pathname = usePathname();
   const flags = useFeatureFlags();
   const requested = params.get("tab");

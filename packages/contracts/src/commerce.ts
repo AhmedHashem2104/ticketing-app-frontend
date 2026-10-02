@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { amountSchema, egyptMobileSchema, idSchema, isoDateTimeSchema, themeSchema } from "./common";
+import { amountSchema, egyptMobileSchema, idSchema, imageUrlSchema, isoDateTimeSchema, themeSchema } from "./common";
 import { dayjs } from "./datetime";
 import { eventKindSchema } from "./events";
 
@@ -43,6 +43,7 @@ export type LineItem = z.infer<typeof lineItemSchema>;
 
 export const holderSchema = z.object({
   initials: z.string(),
+  avatarUrl: imageUrlSchema.optional(),
   name: z.string(),
   detail: z.string(),
 });
@@ -57,6 +58,7 @@ export const holdSchema = z.object({
   eventMeta: z.string(),
   eventKind: eventKindSchema,
   theme: themeSchema,
+  imageUrl: imageUrlSchema.optional(),
   expiresAt: isoDateTimeSchema,
   lines: z.array(lineItemSchema),
   seats: z.array(z.string()),
@@ -183,6 +185,7 @@ export const ticketSchema = z.object({
   eventSlug: z.string(),
   eventKind: eventKindSchema,
   theme: themeSchema,
+  imageUrl: imageUrlSchema.optional(),
   variant: ticketVariantSchema,
   status: ticketStatusSchema,
   kindLabel: z.string(),
@@ -200,6 +203,7 @@ export const ticketSchema = z.object({
   seatLabel: z.string(),
   holderName: z.string(),
   holderInitials: z.string(),
+  holderAvatarUrl: imageUrlSchema.optional(),
   holderDetail: z.string(),
   holderDate: z.string(),
   position: z.object({ index: z.number().int().positive(), of: z.number().int().positive() }),
@@ -245,6 +249,7 @@ export const transferSchema = z.object({
   eventSlug: z.string(),
   seatLabel: z.string(),
   startsAt: isoDateTimeSchema,
+  imageUrl: imageUrlSchema.optional(),
   createdAt: isoDateTimeSchema,
   expiresAt: isoDateTimeSchema,
 });
@@ -303,6 +308,7 @@ export const orderSchema = z.object({
   eventMeta: z.string(),
   eventKind: eventKindSchema,
   theme: themeSchema,
+  imageUrl: imageUrlSchema.optional(),
   entryNote: z.string(),
   total: amountSchema,
   paymentLabel: z.string(),
@@ -346,6 +352,7 @@ export const resaleListingSchema = z.object({
   payout: amountSchema,
   status: z.enum(["listed", "sold"]),
   detail: z.string(),
+  imageUrl: imageUrlSchema.optional(),
 });
 export type ResaleListing = z.infer<typeof resaleListingSchema>;
 
@@ -357,6 +364,7 @@ export const resaleOfferSchema = z.object({
   seatLabel: z.string(),
   price: amountSchema,
   faceValue: amountSchema,
+  imageUrl: imageUrlSchema.optional(),
   requiresFanId: z.boolean(),
 });
 export type ResaleOffer = z.infer<typeof resaleOfferSchema>;
@@ -406,6 +414,7 @@ export const refundSchema = z.object({
   eventTitle: z.string(),
   detail: z.string(),
   amount: amountSchema,
+  imageUrl: imageUrlSchema.optional(),
   destination: z.string(),
   status: z.enum(["in_review", "refunded", "rejected", "cancelled"]),
   statusLabel: z.string(),

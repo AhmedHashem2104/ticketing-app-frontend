@@ -1,14 +1,16 @@
 import { z } from "zod";
 import { validateProps, zClassName, zNode } from "../lib/props";
 import { cn } from "../lib/utils";
+import { useI18n } from "../lib/provider";
 
 function SkipLink() {
+  const { t } = useI18n();
   return (
     <a
       href="#main"
-      className="sr-only z-50 rounded-lg bg-gold px-4 py-3 font-semibold text-ink focus:not-sr-only focus:fixed focus:top-3 focus:left-3"
+      className="sr-only z-50 rounded-lg bg-gold px-4 py-3 font-semibold text-ink focus:not-sr-only focus:fixed focus:top-3 focus:start-3"
     >
-      Skip to main content
+      {t("Skip to main content")}
     </a>
   );
 }

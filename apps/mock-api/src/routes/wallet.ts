@@ -178,6 +178,7 @@ export function walletRouter(store: Store) {
       eventTitle: ticket.title,
       eventSlug: ticket.eventSlug,
       seatLabel: ticket.seatLabel,
+      ...(ticket.imageUrl ? { imageUrl: ticket.imageUrl } : {}),
       startsAt: ticket.startsAt,
       createdAt: now.toISOString(),
       expiresAt: addHours(now, 24).toISOString(),
@@ -189,6 +190,7 @@ export function walletRouter(store: Store) {
         title: `${user.fullName} sent you a ticket`,
         body: `${ticket.title} · ${ticket.seatLabel}. Accept within 24 hours.`,
         href: "/transfers",
+        imageUrl: ticket.imageUrl,
       });
     }
     res.status(201).json(toTransfer(transfer, user.id));
@@ -233,6 +235,7 @@ export function walletRouter(store: Store) {
       status: "valid",
       holderName: holder?.name.replace(" (you)", "") ?? user.fullName,
       holderInitials: user.initials,
+      ...(user.avatarUrl ? { holderAvatarUrl: user.avatarUrl } : {}),
       holderDetail: isMatch ? `${holder?.fanIdMasked ?? "Fan ID"} · bring your ID card` : "Matchpass account",
       position: { index: 1, of: 1 },
     };
@@ -244,6 +247,7 @@ export function walletRouter(store: Store) {
       title: "Your ticket transfer was accepted",
       body: `${transfer.eventTitle} · ${transfer.seatLabel}`,
       href: "/tickets",
+      imageUrl: transfer.imageUrl,
     });
     res.json({ transfer: toTransfer(transfer, user.id), ticket: store.publicTicket(reissued) });
   });
@@ -260,6 +264,7 @@ export function walletRouter(store: Store) {
       title: "Your ticket transfer was declined",
       body: "The ticket is back in your account.",
       href: "/tickets",
+      imageUrl: transfer.imageUrl,
     });
     res.json(toTransfer(transfer, user.id));
   });
@@ -302,6 +307,7 @@ export function walletRouter(store: Store) {
       seatLabel: ticket.seatLabel,
       faceValue: ticket.price,
       title: `${ticket.title} · ${ticket.seatLabel}`,
+      ...(ticket.imageUrl ? { imageUrl: ticket.imageUrl } : {}),
       price: quote.price,
       payout: quote.payout,
       status: "listed" as const,
@@ -390,7 +396,9 @@ export function walletRouter(store: Store) {
       userId: user.id,
       ticketIds: tickets.map((t) => t.id),
       requestedLabel: shortDateLabel(now).toUpperCase(),
+      requestedAt: now,
       eventTitle: tickets[0]?.title ?? order.eventTitle,
+      ...(order.imageUrl ? { imageUrl: order.imageUrl } : {}),
       detail: `${tickets.length} × ${typeLabel} · reason: ${refundReasonLabels[body.reason].replace("I ", "").toLowerCase()}`,
       amount,
       destination: body.method === "credit" ? "To Matchpass credit" : body.method === "card" ? "To card •••• 0042" : "To mobile wallet",

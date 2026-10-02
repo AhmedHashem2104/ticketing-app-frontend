@@ -17,6 +17,18 @@ import type { Store } from "../data/store";
 import { currentUser, optionalUser, requireAuth } from "../http/auth";
 import { HttpError, notFound } from "../http/errors";
 import { param, parseBody, parseQuery } from "../http/validate";
+import { contentTranslator } from "../i18n/localize";
+
+const toArabic = contentTranslator("ar");
+/** Case-folds and evens out Arabic letter variants (أ/إ/آ → ا, ة → ه, ى → ي) and diacritics for search. */
+const normalizeSearch = (text: string) =>
+  text
+    .toLowerCase()
+    .replace(/[\u064B-\u0652]/g, "")
+    .replace(/[أإآ]/g, "ا")
+    .replace(/ة/g, "ه")
+    .replace(/ى/g, "ي")
+    .trim();
 
 export const PRESALE_CODES: Record<string, string[]> = {
   "layla-nour-live-in-cairo": ["LAYLA24"],
@@ -34,6 +46,7 @@ export function toSummary(event: EventDetail): EventSummary {
     subtitle,
     tag,
     art,
+    imageUrl,
     theme,
     startsAt,
     endsAt,
@@ -56,6 +69,7 @@ export function toSummary(event: EventDetail): EventSummary {
     title,
     tag,
     art,
+    imageUrl,
     theme,
     startsAt,
     venue,
@@ -112,9 +126,14 @@ export function catalogRouter(store: Store) {
   router.get("/events", (req, res) => {
     const query = parseQuery(eventsQuerySchema, req);
     const inTab = store.events.filter(TAB_FILTERS[query.tab]);
-    const q = query.q?.toLowerCase();
+    // Search matches the English names and their Arabic translations, so fans can search in either language.
+    const q = query.q ? normalizeSearch(query.q) : undefined;
     const items = inTab
-      .filter((e) => !q || [e.title, e.venue.name, e.venue.area, e.tag].some((text) => text.toLowerCase().includes(q)))
+      .filter(
+        (e) =>
+          !q ||
+          [e.title, e.venue.name, e.venue.area, e.tag].some((text) => [text, toArabic(text)].some((v) => normalizeSearch(v).includes(q))),
+      )
       .filter((e) => !query.categories?.length || query.categories.includes(e.category))
       .filter((e) => !query.cities?.length || query.cities.includes(e.venue.city))
       .filter((e) => !query.from || e.startsAt.slice(0, 10) >= query.from)
@@ -206,6 +225,7 @@ export function catalogRouter(store: Store) {
         seatLabel: l.seatLabel,
         price: l.price,
         faceValue: l.faceValue,
+        ...(event.imageUrl ? { imageUrl: event.imageUrl } : {}),
         requiresFanId: event.requiresFanId,
       }));
     res.json(offers);

@@ -1,4 +1,4 @@
-import { eventSummarySchema, fanSchema, formatMoney, ticketTypeSchema } from "@repo/contracts";
+import { eventSummarySchema, fanSchema, ticketTypeSchema } from "@repo/contracts";
 import { ChevronRight, X } from "lucide-react";
 import { z } from "zod";
 import { Badge, saleStatusTone } from "../atoms/Badge";
@@ -6,14 +6,15 @@ import { Button } from "../atoms/Button";
 import { Checkbox } from "../atoms/FormControls";
 import { DateBadge } from "../atoms/DataDisplay";
 import { Avatar } from "../atoms/Identity";
+import { CoverImage, Thumbnail } from "../atoms/Media";
 import { Swatch } from "../atoms/Seat";
-import { dateTimeLabel, dayLabel, timeLabel } from "../lib/datetime";
 import { validateProps, zClassName, zFn, zHref } from "../lib/props";
-import { useUI } from "../lib/provider";
+import { useI18n, useUI } from "../lib/provider";
 import { themeSurface } from "../lib/theme";
 import { cn } from "../lib/utils";
 import { QuantityStepper } from "./Form";
 
+/** Category shown on the card; categories are fixed values the catalog translates. */
 const kindLabel = (event: z.infer<typeof eventSummarySchema>) => (event.category === "Concerts" ? "Concert" : event.category);
 
 /* ---------- EventCard ---------- */
@@ -25,7 +26,7 @@ export type EventCardProps = z.input<typeof eventCardPropsSchema>;
 export function EventCard(props: EventCardProps) {
   validateProps("EventCard", eventCardPropsSchema, props);
   const { event, href, className } = props;
-  const { LinkComponent } = useUI();
+  const { LinkComponent, t, f } = useUI();
   return (
     <LinkComponent
       href={href}
@@ -34,21 +35,26 @@ export function EventCard(props: EventCardProps) {
         className,
       )}
     >
-      <div className={cn("flex h-[150px] flex-col justify-between p-[18px]", themeSurface[event.theme])}>
-        <span className="self-start rounded-xl bg-white px-2.5 py-1 text-xs font-semibold text-ink">{kindLabel(event)}</span>
-        <span aria-hidden="true" className="font-display text-[34px] leading-[0.95] font-extrabold uppercase">
+      <div className={cn("relative isolate flex h-[170px] flex-col justify-between p-[18px]", themeSurface[event.theme])}>
+        <CoverImage
+          src={event.imageUrl}
+          scrim="bottom"
+          className="[&_img]:transition-transform [&_img]:duration-500 group-hover:[&_img]:scale-105"
+        />
+        <span className="self-start rounded-xl bg-white px-2.5 py-1 text-xs font-semibold text-ink">{t(kindLabel(event))}</span>
+        <span aria-hidden="true" className="font-display text-[34px] leading-[0.95] font-extrabold uppercase drop-shadow-md">
           {event.art}
         </span>
       </div>
       <div className="flex flex-1 flex-col gap-1.5 px-[18px] pt-4 pb-[18px]">
-        <span className="text-[13px] text-muted-ink">{dateTimeLabel(event.startsAt)}</span>
+        <span className="text-[13px] text-muted-ink">{f.dateTimeLabel(event.startsAt)}</span>
         <span className="text-[17px] font-semibold group-hover:underline">{event.title}</span>
         <span className="text-[13px] text-muted-ink">
           {event.venue.name}, {event.venue.area}
         </span>
         <div className="mt-auto flex items-center justify-between border-t border-line pt-3">
           <span className="text-sm">
-            From <strong>{formatMoney(event.priceFrom)}</strong>
+            {t("From")} <strong>{f.money(event.priceFrom)}</strong>
           </span>
           <Badge tone={saleStatusTone[event.status]}>{event.statusLabel}</Badge>
         </div>
@@ -66,7 +72,7 @@ export type EventRowProps = z.input<typeof eventRowPropsSchema>;
 export function EventRow(props: EventRowProps) {
   validateProps("EventRow", eventRowPropsSchema, props);
   const { event, href, className } = props;
-  const { LinkComponent } = useUI();
+  const { LinkComponent, t, f } = useUI();
   return (
     <LinkComponent
       href={href}
@@ -76,20 +82,21 @@ export function EventRow(props: EventRowProps) {
       )}
     >
       <DateBadge date={event.startsAt} theme={event.theme} />
+      {event.imageUrl ? <Thumbnail src={event.imageUrl} theme={event.theme} size="lg" className="max-sm:hidden" /> : null}
       <span className="flex min-w-[min(100%,240px)] flex-1 flex-col gap-1">
         <span className="text-[13px] text-muted-ink">{event.tag}</span>
         <span className="text-lg font-semibold">{event.title}</span>
         <span className="text-[13px] text-muted-ink">
-          {dayLabel(event.startsAt).split(" ")[0]} {timeLabel(event.startsAt)} · {event.venue.name}, {event.venue.area}
+          {f.weekdayShort(event.startsAt)} {f.timeLabel(event.startsAt)} · {event.venue.name}, {event.venue.area}
         </span>
       </span>
       <span className="flex shrink-0 flex-col items-end gap-1.5">
         <span className="text-sm">
-          From <strong>{formatMoney(event.priceFrom)}</strong>
+          {t("From")} <strong>{f.money(event.priceFrom)}</strong>
         </span>
         <Badge tone={saleStatusTone[event.status]}>{event.statusLabel}</Badge>
       </span>
-      <ChevronRight className="size-5 shrink-0 text-muted-ink" aria-hidden="true" />
+      <ChevronRight className="size-5 shrink-0 text-muted-ink rtl:-scale-x-100" aria-hidden="true" />
     </LinkComponent>
   );
 }
@@ -110,9 +117,11 @@ export type ComingSoonRowProps = z.input<typeof comingSoonRowPropsSchema>;
 export function ComingSoonRow(props: ComingSoonRowProps) {
   validateProps("ComingSoonRow", comingSoonRowPropsSchema, props);
   const { event, notified, onNotify, pending, className } = props;
+  const { t } = useI18n();
   return (
     <div className={cn("flex items-center gap-4 border-t border-line py-3", className)}>
       <DateBadge date={event.startsAt} variant="plain" />
+      {event.imageUrl ? <Thumbnail src={event.imageUrl} theme={event.theme} className="max-sm:hidden" /> : null}
       <div className="flex flex-1 flex-col gap-0.5">
         <span className="font-semibold">{event.title}</span>
         <span className="text-[13px] text-muted-ink">
@@ -125,9 +134,11 @@ export function ComingSoonRow(props: ComingSoonRowProps) {
           onClick={onNotify}
           disabled={notified}
           loading={pending}
-          aria-label={notified ? `We'll notify you about ${event.title}` : `Notify me about ${event.title}`}
+          aria-label={
+            notified ? t("We'll notify you about {title}", { title: event.title }) : t("Notify me about {title}", { title: event.title })
+          }
         >
-          {notified ? "Notified ✓" : "Notify me"}
+          {notified ? t("Notified ✓") : t("Notify me")}
         </Button>
       ) : null}
     </div>
@@ -151,6 +162,7 @@ export type FanOptionProps = z.input<typeof fanOptionPropsSchema>;
 export function FanOption(props: FanOptionProps) {
   validateProps("FanOption", fanOptionPropsSchema, props);
   const { fan, checked, onCheckedChange, disabled, unavailableReason, className } = props;
+  const { t } = useI18n();
   const blocked = disabled || !!unavailableReason || fan.status !== "approved";
   const id = `fan-${fan.id}`;
   return (
@@ -162,7 +174,7 @@ export function FanOption(props: FanOptionProps) {
         disabled={blocked}
         aria-describedby={`${id}-note`}
       />
-      <Avatar initials={fan.initials} />
+      <Avatar initials={fan.initials} src={fan.avatarUrl} />
       <span className="flex flex-1 flex-col">
         <label htmlFor={id} className={cn("cursor-pointer text-[15px] font-semibold", blocked && "cursor-not-allowed")}>
           {fan.name}
@@ -171,7 +183,7 @@ export function FanOption(props: FanOptionProps) {
           {unavailableReason
             ? `${fan.fanIdMasked.split(" ·")[0]} · ${unavailableReason}`
             : fan.status === "approved"
-              ? `${fan.fanIdMasked} · approved`
+              ? `${fan.fanIdMasked} · ${t("approved")}`
               : fan.fanIdMasked}
         </span>
       </span>
@@ -196,6 +208,7 @@ export type TicketTypeRowProps = z.input<typeof ticketTypeRowPropsSchema>;
 export function TicketTypeRow(props: TicketTypeRowProps) {
   validateProps("TicketTypeRow", ticketTypeRowPropsSchema, props);
   const { ticketType, quantity, onQuantityChange, canIncrease, focused, onFocus, className } = props;
+  const { f } = useI18n();
   return (
     <div
       onFocusCapture={onFocus}
@@ -206,7 +219,7 @@ export function TicketTypeRow(props: TicketTypeRowProps) {
         <span className="text-[15px] font-semibold">{ticketType.name}</span>
         <span className="text-xs text-muted-ink">{ticketType.description}</span>
         <span className="text-sm font-semibold">
-          {formatMoney(ticketType.price)} {ticketType.tag ? <span className="text-xs text-warn">{ticketType.tag}</span> : null}
+          {f.money(ticketType.price)} {ticketType.tag ? <span className="text-xs text-warn">{ticketType.tag}</span> : null}
         </span>
       </div>
       <QuantityStepper
@@ -234,6 +247,7 @@ export type PickedSeatRowProps = z.input<typeof pickedSeatRowPropsSchema>;
 export function PickedSeatRow(props: PickedSeatRowProps) {
   validateProps("PickedSeatRow", pickedSeatRowPropsSchema, props);
   const { label, detail, onRemove, showSwatch, className } = props;
+  const { t } = useI18n();
   return (
     <li className={cn("flex items-center gap-2.5 border-t border-line pt-2.5", className)}>
       {showSwatch ? <Swatch fill="#F2B705" border="solid" borderColor="#121512" shape="seat" className="size-7 border-2" /> : null}
@@ -241,7 +255,7 @@ export function PickedSeatRow(props: PickedSeatRowProps) {
         <span className="text-[15px] font-semibold">{label}</span>
         <span className="text-[13px] text-muted-ink">{detail}</span>
       </span>
-      <Button variant="ghost" size="icon" aria-label={`Remove ${label}`} onClick={onRemove} className="text-sub">
+      <Button variant="ghost" size="icon" aria-label={t("Remove {item}", { item: label })} onClick={onRemove} className="text-sub">
         <X className="size-[18px]" aria-hidden="true" />
       </Button>
     </li>

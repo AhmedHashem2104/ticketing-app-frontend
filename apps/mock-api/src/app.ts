@@ -6,10 +6,12 @@ import helmet from "helmet";
 import { loadConfig, type AppConfig } from "./config";
 import { DEMO_USER, SECOND_USER, Store } from "./data/store";
 import { errorHandler, notFoundHandler } from "./http/errors";
+import { localizeResponses } from "./i18n/localize";
 import { accountRouter } from "./routes/account";
 import { catalogRouter, catalogTestRoutes } from "./routes/catalog";
 import { checkoutRouter, paymentTestRoutes } from "./routes/checkout";
 import { queueRouter } from "./routes/queue";
+import { staffRouter } from "./routes/staff";
 import { gateRouter, walletRouter } from "./routes/wallet";
 
 export type CreateAppOptions = { config?: Partial<AppConfig>; store?: Store };
@@ -64,6 +66,7 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use(cors({ origin: config.corsOrigins, credentials: false, exposedHeaders: ["X-Request-Id", "Retry-After"] }));
   app.use(compression());
   app.use(express.json({ limit: "100kb" }));
+  app.use(localizeResponses);
 
   const api = Router();
   api.get("/health", (_req, res) => {
@@ -90,6 +93,7 @@ export function createApp(options: CreateAppOptions = {}) {
   api.use(checkoutRouter(store, config));
   api.use(walletRouter(store));
   api.use(gateRouter(store));
+  api.use(staffRouter(store, { enableTestRoutes: config.enableTestRoutes }));
 
   app.use("/api", api);
   app.use(notFoundHandler);

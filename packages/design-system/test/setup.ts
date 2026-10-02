@@ -1,8 +1,12 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterEach } from "vitest";
+import { resetUI } from "../src/lib/provider";
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  resetUI();
+});
 
 // jsdom gaps used by Radix primitives.
 class ResizeObserverStub {

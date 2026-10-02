@@ -3,9 +3,10 @@
   "private": true,
   "scripts": {
     "build": "turbo run build",
-    "dev": "turbo run dev --filter=matchpass-web --filter=mock-api",
+    "dev": "turbo run dev --filter=matchpass-web --filter=dashboard --filter=mock-api",
+    "dev:dashboard": "turbo run dev --filter=dashboard --filter=mock-api",
     "dev:showcase": "turbo run dev --filter=ui-showcase",
-    "start": "turbo run start --filter=matchpass-web --filter=mock-api",
+    "start": "turbo run start --filter=matchpass-web --filter=dashboard --filter=mock-api",
     "lint": "turbo run lint",
     "check-types": "turbo run check-types",
     "test": "turbo run test",

@@ -4,15 +4,14 @@ import axe from "axe-core";
 import type { ReactElement } from "react";
 import { expect, vi } from "vitest";
 import { PropValidationError } from "../src/lib/props";
-import { UIProvider } from "../src/lib/provider";
+import type { Locale } from "@repo/i18n";
+import { configureUI, UIProvider } from "../src/lib/provider";
 
-export function renderUI(ui: ReactElement, options: RenderOptions & { now?: () => number } = {}) {
-  const { now, ...rest } = options;
+export function renderUI(ui: ReactElement, options: RenderOptions & { now?: () => number; devTools?: boolean; locale?: Locale } = {}) {
+  const { now, devTools, locale = "en", ...rest } = options;
+  configureUI({ now: now ?? (() => Date.now()), devTools: !!devTools, useLocale: () => locale });
   const user = userEvent.setup();
-  const result = render(ui, {
-    wrapper: ({ children }) => <UIProvider now={now}>{children}</UIProvider>,
-    ...rest,
-  });
+  const result = render(ui, { wrapper: ({ children }) => <UIProvider>{children}</UIProvider>, ...rest });
   return { user, ...result };
 }
 

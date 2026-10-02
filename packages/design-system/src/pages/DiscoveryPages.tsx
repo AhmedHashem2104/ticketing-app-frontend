@@ -31,6 +31,7 @@ import {
 import { Container, SiteLayout, TwoColumn } from "../templates/Layouts";
 import { FaqList, Card } from "../molecules/Content";
 import { validateProps, zFn, zHref, zNode } from "../lib/props";
+import { useI18n } from "../lib/provider";
 
 const actionSchema = z.object({ label: z.string().min(1), href: zHref });
 const crumbSchema = z.object({ label: z.string().min(1), href: zHref.optional() });
@@ -62,30 +63,31 @@ export type HomePageProps = z.input<typeof homePagePropsSchema>;
 export function HomePage(props: HomePageProps) {
   validateProps("HomePage", homePagePropsSchema, props);
   const { header, footer, featured, categories, category, onCategoryChange, onSale, hrefFor, comingSoon, callout, notice } = props;
+  const { t } = useI18n();
   return (
     <SiteLayout header={header} footer={footer}>
       <Container className="flex flex-col gap-10 pt-8">
-        <h1 className="sr-only">Matchpass — official tickets for football, concerts and live events</h1>
+        <h1 className="sr-only">{t("Matchpass — official tickets for football, concerts and live events")}</h1>
         {notice ? <Notice tone="warning">{notice}</Notice> : null}
         {featured.length ? (
-          <section aria-label="Featured" className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,380px),1fr))] gap-5">
+          <section aria-label={t("Featured")} className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,380px),1fr))] gap-5">
             {featured.map((f) => (
               <FeaturedEventCard key={f.event.id} {...f} />
             ))}
           </section>
         ) : null}
         <ChipGroup
-          label="Categories"
-          options={categories.map((c) => ({ value: c, label: c }))}
+          label={t("Categories")}
+          options={categories.map((c) => ({ value: c, label: t(c) }))}
           value={category}
           onValueChange={onCategoryChange}
         />
         <EventGrid
-          title="On sale now"
+          title={t("On sale now")}
           events={onSale}
           hrefFor={hrefFor}
-          seeAll={{ label: "See all events", href: "/events" }}
-          emptyText={`Nothing on sale in ${category} right now.`}
+          seeAll={{ label: t("See all events"), href: "/events" }}
+          emptyText={t("Nothing on sale in {category} right now.", { category: t(category) })}
         />
         <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,380px),1fr))] gap-5">
           {comingSoon.events.length ? <ComingSoonList {...comingSoon} /> : null}
@@ -140,7 +142,8 @@ export function EventsPage(props: EventsPageProps) {
     hrefFor,
   } = props;
   const isMatches = tab === "matches";
-  const title = { matches: "Matches", concerts: "Concerts & events", cinema: "Cinema" }[tab];
+  const { t } = useI18n();
+  const title = { matches: t("Matches"), concerts: t("Concerts & events"), cinema: t("Cinema") }[tab];
   return (
     <SiteLayout header={header} footer={footer}>
       <Container className="flex flex-col gap-6 pt-8">
@@ -150,27 +153,27 @@ export function EventsPage(props: EventsPageProps) {
               {title}
             </Heading>
             <SegmentedControl
-              label="Event type"
+              label={t("Event type")}
               value={tab}
               onValueChange={(v) => onTabChange(v as EventTab)}
               options={[
-                { value: "matches", label: "Matches" },
-                { value: "concerts", label: "Concerts & events" },
-                ...(showCinema ? [{ value: "cinema", label: "Cinema" }] : []),
+                { value: "matches", label: t("Matches") },
+                { value: "concerts", label: t("Concerts & events") },
+                ...(showCinema ? [{ value: "cinema", label: t("Cinema") }] : []),
               ]}
             />
           </div>
           <SearchField
-            label="Search events"
+            label={t("Search events")}
             value={search}
             onValueChange={onSearchChange}
-            placeholder={isMatches ? "Search teams, stadiums" : tab === "cinema" ? "Search films" : "Search artists, venues"}
+            placeholder={isMatches ? t("Search teams, stadiums") : tab === "cinema" ? t("Search films") : t("Search artists, venues")}
             className="w-full sm:w-[380px]"
           />
         </div>
         <div className="flex flex-wrap items-start gap-6">
           <FiltersPanel
-            groupLabel={isMatches ? "COMPETITION" : tab === "cinema" ? "GENRE" : "CATEGORY"}
+            groupLabel={isMatches ? t("COMPETITION") : tab === "cinema" ? t("GENRE") : t("CATEGORY")}
             categories={facets.categories}
             cities={facets.cities}
             value={filters}
@@ -213,12 +216,13 @@ export type MatchDetailPageProps = z.input<typeof matchDetailPagePropsSchema>;
 export function MatchDetailPage(props: MatchDetailPageProps) {
   validateProps("MatchDetailPage", matchDetailPagePropsSchema, props);
   const { header, footer, event, breadcrumbs, buyBox, fanIdNotice } = props;
+  const { t } = useI18n();
   return (
     <SiteLayout header={header} footer={footer}>
       <MatchHero event={event} breadcrumbs={breadcrumbs} />
       <Container className="pt-8">
         <TwoColumn
-          asideLabel="Buy tickets"
+          asideLabel={t("Buy tickets")}
           asideWidth="sm"
           aside={
             <>
@@ -231,12 +235,12 @@ export function MatchDetailPage(props: MatchDetailPageProps) {
             </>
           }
         >
-          <PriceTable title="Prices by zone" rows={event.priceTable} note={event.priceNote} />
+          <PriceTable title={t("Prices by zone")} rows={event.priceTable} note={event.priceNote} />
           {event.gates ? <GatesCard gates={event.gates} note={event.gatesNote} /> : null}
           <ListCard title={event.rulesTitle} items={event.rules} />
           <section aria-labelledby="faq-title" className="flex flex-col gap-2">
             <Heading id="faq-title" size="lg" className="pb-1">
-              FAQ
+              {t("FAQ")}
             </Heading>
             <FaqList items={event.faqs} />
           </section>
@@ -262,12 +266,13 @@ export type ConcertDetailPageProps = z.input<typeof concertDetailPagePropsSchema
 export function ConcertDetailPage(props: ConcertDetailPageProps) {
   validateProps("ConcertDetailPage", concertDetailPagePropsSchema, props);
   const { header, footer, event, breadcrumbs, buyBox } = props;
+  const { t } = useI18n();
   return (
     <SiteLayout header={header} footer={footer}>
       <ConcertHero event={event} breadcrumbs={breadcrumbs} />
       <Container className="pt-8">
         <TwoColumn
-          asideLabel="Buy tickets"
+          asideLabel={t("Buy tickets")}
           asideWidth="sm"
           aside={
             <>
@@ -276,11 +281,11 @@ export function ConcertDetailPage(props: ConcertDetailPageProps) {
             </>
           }
         >
-          <Card title="About the show">
+          <Card title={t("About the show")}>
             <p className="text-base leading-relaxed text-sub">{event.description}</p>
           </Card>
           {event.runningOrder ? <RunningOrder items={event.runningOrder} /> : null}
-          <PriceTable title="Ticket types" rows={event.priceTable} variant="types" />
+          <PriceTable title={t("Ticket types")} rows={event.priceTable} variant="types" />
           <ListCard title={event.rulesTitle} items={event.rules} />
           <FaqList items={event.faqs} />
         </TwoColumn>

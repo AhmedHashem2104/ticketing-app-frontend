@@ -1,7 +1,9 @@
 import "server-only";
 import { eventDetailSchema, eventsResponseSchema, homeResponseSchema, type EventDetail, type EventsQuery } from "@repo/contracts";
+import { isLocale, localizePath, type Locale } from "@repo/i18n";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { lang } from "next/root-params";
 import { cache } from "react";
 import type { z } from "zod";
 import { SESSION_COOKIE } from "./session-cookie";
@@ -9,9 +11,23 @@ import { SESSION_COOKIE } from "./session-cookie";
 /** Server-side reads straight from the API (no BFF hop) for SSR, metadata, JSON-LD and the sitemap. */
 const origin = () => (process.env.API_ORIGIN ?? "http://localhost:4000").replace(/\/$/, "");
 
-async function get<S extends z.ZodType>(schema: S, path: string, timeoutMs = 4_000): Promise<z.output<S> | null> {
+/** The page's language from the `[lang]` root segment (English for routes outside it, e.g. the sitemap). */
+export async function currentLocale(): Promise<Locale> {
   try {
-    const response = await fetch(`${origin()}/api${path}`, { cache: "no-store", signal: AbortSignal.timeout(timeoutMs) });
+    const value = await lang();
+    return isLocale(value) ? value : "en";
+  } catch {
+    return "en";
+  }
+}
+
+async function get<S extends z.ZodType>(schema: S, path: string, locale?: Locale, timeoutMs = 4_000): Promise<z.output<S> | null> {
+  try {
+    const response = await fetch(`${origin()}/api${path}`, {
+      cache: "no-store",
+      headers: { "accept-language": locale ?? (await currentLocale()) },
+      signal: AbortSignal.timeout(timeoutMs),
+    });
     if (!response.ok) return null;
     return schema.parse(await response.json());
   } catch {
@@ -22,18 +38,21 @@ async function get<S extends z.ZodType>(schema: S, path: string, timeoutMs = 4_0
 
 export const serverApi = {
   home: cache(() => get(homeResponseSchema, "/home")),
-  event: cache((slug: string) => get(eventDetailSchema, `/events/${encodeURIComponent(slug)}`)),
-  events: (query: EventsQuery) => {
+  event: cache((slug: string, locale?: Locale) => get(eventDetailSchema, `/events/${encodeURIComponent(slug)}`, locale)),
+  events: (query: EventsQuery, locale?: Locale) => {
     const search = new URLSearchParams();
     if (query.tab) search.set("tab", query.tab);
-    return get(eventsResponseSchema, `/events?${search.toString()}`);
+    return get(eventsResponseSchema, `/events?${search.toString()}`, locale);
   },
 };
 
 /** Sends visitors without a session cookie to log in before any protected page renders. */
 export async function requireSession(nextPath: string) {
   const store = await cookies();
-  if (!store.has(SESSION_COOKIE)) redirect(`/login?next=${encodeURIComponent(nextPath)}`);
+  if (!store.has(SESSION_COOKIE)) {
+    const locale = await currentLocale();
+    redirect(localizePath(`/login?next=${encodeURIComponent(localizePath(nextPath, locale))}`, locale));
+  }
 }
 
 export const siteUrl = () => (process.env.SITE_URL ?? "http://localhost:3000").replace(/\/$/, "");
@@ -63,7 +82,7 @@ export function eventJsonLd(event: EventDetail) {
       : {}),
     offers: {
       "@type": "Offer",
-      url: `${siteUrl()}/events/${event.slug}`,
+      url: `${siteUrl()}/en/events/${event.slug}`,
       price: event.priceFrom,
       priceCurrency: "EGP",
       availability:

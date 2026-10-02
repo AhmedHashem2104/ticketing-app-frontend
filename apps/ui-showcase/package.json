@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Storybook for the Matchpass design system (atoms \u2192 pages), built on Vite.",
+  "description": "Storybook for the Matchpass design system (atoms → pages), built on Vite.",
   "scripts": {
     "dev": "storybook dev --port 6006 --no-open",
     "build": "storybook build --output-dir storybook-static",
@@ -15,6 +15,7 @@
   "dependencies": {
     "@repo/contracts": "workspace:*",
     "@repo/design-system": "workspace:*",
+    "@repo/i18n": "workspace:*",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },

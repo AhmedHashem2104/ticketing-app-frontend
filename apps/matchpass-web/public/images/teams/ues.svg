@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="UES crest">
+  <defs><clipPath id="s"><path d="M60 6 L108 20 V58 C108 88 87 106 60 116 C33 106 12 88 12 58 V20 Z"/></clipPath></defs>
+  <g clip-path="url(#s)">
+    <rect width="120" height="120" fill="#A3201A"/>
+    <path d="M0 40 L60 76 L120 40 V64 L60 100 L0 64 Z" fill="#E8B547"/>
+  </g>
+  <path d="M60 6 L108 20 V58 C108 88 87 106 60 116 C33 106 12 88 12 58 V20 Z" fill="none" stroke="#5C0F0B" stroke-width="5"/>
+  <rect x="22" y="46" width="76" height="26" rx="6" fill="#fff"/>
+  <text x="60" y="65" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="18" fill="#5C0F0B">UES</text>
+</svg>

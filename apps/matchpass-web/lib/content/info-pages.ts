@@ -2,6 +2,9 @@
  * Static help and policy content. Legal pages (terms, privacy, refund policy) are written as
  * plain-language drafts and must be reviewed by counsel before launch.
  */
+import type { Locale } from "@repo/i18n";
+import { INFO_PAGES_AR } from "./info-pages.ar";
+
 export type InfoSection = { id: string; title: string; paragraphs: string[] };
 export type InfoPageContent = { eyebrow: string; title: string; intro: string; updated?: string; sections: InfoSection[] };
 
@@ -260,3 +263,8 @@ export const INFO_PAGES: Record<string, InfoPageContent> = {
     ],
   },
 };
+
+/** Help and policy pages in the visitor's language (same slugs and section ids in every language). */
+export function infoPagesFor(locale: Locale): Record<string, InfoPageContent> {
+  return locale === "ar" ? INFO_PAGES_AR : INFO_PAGES;
+}
