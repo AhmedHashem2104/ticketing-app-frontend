@@ -48,37 +48,50 @@ Test cards: `4242 4242 4242 4242` succeeds, `4000 0000 0000 0002` is declined. P
 ## Architecture
 
 ```
-browser ──► Next.js (matchpass-web) ──/api/* proxy──► API_ORIGIN (mock-api locally)
-              │  TanStack Query + axios, every response validated by @repo/contracts
-              └─ renders @repo/design-system pages (pure, prop-driven, zod-validated props)
+browser ──► Next.js (matchpass-web) ──/api/* BFF──► API_ORIGIN (mock-api locally)
+   │          │  httpOnly session cookie → Authorization header, CSRF origin check, request ids
+   │          │  TanStack Query + axios, every response validated by @repo/contracts
+   │          └─ renders @repo/design-system pages (pure, prop-driven, zod-validated props)
+   └─ card details only ever go to the payment provider's hosted page (/api/payments/:session)
 ```
 
 - **Design system.** shadcn/ui primitives (generated with the shadcn CLI) restyled with Matchpass tokens, composed into atoms, molecules, organisms, templates and full **pages**. Every component validates its props with zod (throws `PropValidationError` in dev/test) and is fully controlled; forms use react-hook-form with the shared zod schemas. Each component has unit + axe accessibility tests, and every Storybook story is rendered and axe-checked in CI.
-- **Data.** Client components fetch with TanStack Query through a typed axios layer (`lib/api`). Responses are parsed with the contract schemas, so API drift fails loudly. The browser only calls same-origin `/api/*`; a route handler proxies to `API_ORIGIN`, read at request time.
-- **Auth.** Bearer token in `localStorage`, exposed through a `useSyncExternalStore` session store; `RequireAuth` redirects to `/login?next=…` (same-site paths only).
+- **Dates.** All date maths and formatting go through dayjs (utc + timezone plugins) in `@repo/contracts` (`datetime.ts`), so the API and UI show identical Cairo-time labels.
+- **Data.** Client components fetch with TanStack Query through a typed axios layer (`lib/api`). Responses are parsed with the contract schemas, so API drift fails loudly. Home and event pages are server-rendered and hydrated into the query cache; event pages also emit schema.org `Event` JSON-LD and Open Graph metadata, and `/sitemap.xml` lists every event.
+- **Auth.** The API token lives only in an httpOnly, SameSite=Lax cookie set by the BFF (`app/api/[...path]/route.ts`); page scripts never see it. Auth state comes from `GET /me`. Protected pages redirect on the server when there's no session, and `RequireAuth` covers client navigation. State-changing requests from another site are refused (Origin / Sec-Fetch-Site).
+- **Payments.** Cards are paid on the provider's hosted page (PCI scope stays with the provider); wallet and InstaPay orders wait for approval and the order page polls; Fawry bills reserve the seats for 48 hours. Declined or cancelled card payments return to checkout with the hold intact.
 - **Feature flags.** `apps/matchpass-web/config/feature-flags.json` (validated by a strict zod schema + JSON schema for editors) is read **at request time** and cached by file mtime — flip a flag by editing the file, no rebuild. Disabled features disappear from navigation/CTAs and their routes return 404.
 
-| Flag                 | Controls                                          |
-| -------------------- | ------------------------------------------------- |
-| `waitingRoom`        | Virtual queue before high-demand match sales      |
-| `exactSeatSelection` | Picking exact stadium seats by block              |
-| `cinema`             | Cinema showtimes, booking and nav link            |
-| `resale`             | Official resale page, nav link and Resell buttons |
-| `refunds`            | Refund requests and tracking                      |
-| `ticketTransfer`     | Transferring tickets                              |
-| `fanId`              | Fan ID onboarding and calls to action             |
-| `promoCodes`         | Promo codes at checkout and presale codes         |
-| `notifyMe`           | "Notify me" / "Set reminder"                      |
-| `parkingUpsell`      | Parking offer on match confirmations              |
-| `addToWallet`        | Wallet passes (off)                               |
-| `arabicLanguage`     | RTL language toggle (off)                         |
+| Flag                 | Controls                                            |
+| -------------------- | --------------------------------------------------- |
+| `waitingRoom`        | Virtual queue before high-demand match sales        |
+| `exactSeatSelection` | Picking exact stadium seats by block                |
+| `cinema`             | Cinema tab, showtimes and booking                   |
+| `resale`             | Selling on official resale and the resale market    |
+| `refunds`            | Refund requests and tracking                        |
+| `ticketTransfer`     | Transferring tickets and the transfers inbox        |
+| `fanId`              | Fan ID onboarding, linked fans and calls to action  |
+| `promoCodes`         | Promo codes at checkout and presale codes           |
+| `notifyMe`           | "Notify me" / "Set reminder"                        |
+| `parkingUpsell`      | Parking offer on match confirmations                |
+| `notificationCentre` | Header notification bell and `/notifications`       |
+| `addToWallet`        | Wallet passes (off)                                 |
+| `arabicLanguage`     | RTL language toggle (off — needs real translations) |
+
+## Product features
+
+Discovery (home, browse with URL filters, matches, concerts, cinema tab with two films), waiting room, zone or exact-seat selection with **one ticket per Fan ID per match**, seats held for 10 minutes and hidden from other fans meanwhile, checkout with promo codes (WELCOME50 once per fan), hosted card payments, wallet / InstaPay / Fawry, order confirmation with calendar and receipt, **rotating server-signed entry QR** (verified at `POST /api/gate/verify`), transfers with accept / decline / cancel and 24-hour expiry, official resale (selling and **buying**, including for sold-out matches), refunds, **automatic refunds when an event is cancelled**, Fan ID with real photo uploads and asynchronous review, linked fans, account page with notification preferences, notification centre, forgot / reset password, sign-out, and help, terms, privacy and refund-policy pages (legal copy is a plain-language draft — have counsel review it before launch).
 
 ## Mock API
 
-`apps/mock-api` implements the full contract: catalog and filters, seat maps (stadium blocks, arena ticket types, concert hall, cinema showtimes), waiting room simulation, holds with 10-minute expiry, promo codes, orders (card, wallet, InstaPay, Fawry), tickets and transfers, resale listings, refunds and Fan ID verification. Every request body/query is validated with the shared zod schemas and errors use one shape: `{ error: { code, message, details } }`. `POST /api/__test__/reset` re-seeds state (disabled in production unless `ENABLE_TEST_ROUTES=true`). Configuration lives in `apps/mock-api/.env.example`.
+`apps/mock-api` implements the full contract with an in-memory store. Every request body/query is validated with the shared zod schemas and errors use one shape: `{ error: { code, message, details } }` (including `RATE_LIMITED` for repeated failed logins and wrong OTPs). Fan ID photos are multipart uploads (multer, memory only, type and 8 MB size checks). Time-based behaviour (hold expiry, payment approvals, Fawry expiry, transfer expiry, QR and refund windows, Fan ID review) is computed at read time from an injectable clock, which the tests drive.
 
-## Production
+Test-only routes (disabled in production unless `ENABLE_TEST_ROUTES=true`): `POST /api/__test__/reset`, `POST /api/__test__/fawry/:reference/pay`, `POST /api/__test__/orders/:id/expire`, `POST /api/__test__/events/:slug/cancel`. Seed accounts: Omar `1012345482`, Youssef `1098765432`, Karim (resale seller) `1155555555` — password `matchpass123`, OTP `123456`. Configuration: `apps/mock-api/.env.example`.
+
+## Production & operations
 
 - `docker compose up --build` runs both services from their multi-stage images (`apps/*/Dockerfile`, using `turbo prune`). The web image uses Next's standalone output (`NEXT_OUTPUT=standalone`).
-- Security headers (HSTS, frame denial, nosniff, referrer and permissions policies) are set in `next.config.ts`; the API uses helmet, CORS allow-listing and a body size limit.
-- CI: `.github/workflows/ci.yml` runs formatting, lint, type-check, tests and build.
+- **Security:** per-request CSP nonce set in `proxy.ts` (strict `script-src`, `frame-ancestors 'none'`, violations reported to `/monitoring/csp`), HSTS and other headers in `next.config.ts`, httpOnly session cookie, CSRF origin check, submit buttons disabled until hydration (no native GET submits leaking form values). The API uses helmet, CORS allow-listing, body limits and login / OTP rate limits; `QR_SECRET` is required in production.
+- **Observability:** every request carries an `X-Request-Id` through the BFF and API; both log one JSON line per event. `instrumentation.ts` reports server errors (`onRequestError`), `instrumentation-client.ts` and the error boundary report browser errors, and Core Web Vitals are sent to `/monitoring`. Set `ERROR_REPORTING_URL` to forward errors to a collector. The API exposes `/api/health` and `/api/ready`.
+- **Load testing:** `pnpm load` in the E2E repo runs autocannon against the hot read paths with p99 and error-rate budgets.
+- **CI:** `.github/workflows/ci.yml` runs formatting, lint, type-check, tests and build; the E2E repo's workflow runs Playwright in Chromium, Firefox and WebKit.

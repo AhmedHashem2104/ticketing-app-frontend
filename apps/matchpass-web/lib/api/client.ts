@@ -40,26 +40,24 @@ export function toApiError(error: unknown): ApiRequestError {
 
 export const errorMessage = (error: unknown) => (error ? toApiError(error).message : undefined);
 
-type TokenSource = { get: () => string | null; onUnauthorized: () => void };
-let tokenSource: TokenSource = { get: () => null, onUnauthorized: () => {} };
+let onUnauthorized: () => void = () => {};
 
-/** Lets the auth layer supply the bearer token and react to expired sessions. */
-export function configureAuth(source: TokenSource) {
-  tokenSource = source;
+/**
+ * Lets the auth layer react when the session expires mid-visit. The session itself is an
+ * httpOnly cookie managed by the BFF, so the browser client never handles tokens.
+ */
+export function configureAuth(handlers: { onUnauthorized: () => void }) {
+  onUnauthorized = handlers.onUnauthorized;
 }
 
 export function createApiClient(baseURL = "/api"): AxiosInstance {
-  const instance = axios.create({ baseURL, timeout: 15_000, headers: { Accept: "application/json" } });
-  instance.interceptors.request.use((config) => {
-    const token = tokenSource.get();
-    if (token) config.headers.set("Authorization", `Bearer ${token}`);
-    return config;
-  });
+  const instance = axios.create({ baseURL, timeout: 15_000, withCredentials: true, headers: { Accept: "application/json" } });
   instance.interceptors.response.use(
     (response) => response,
     (error: unknown) => {
       const apiError = toApiError(error);
-      if (apiError.status === 401 && tokenSource.get()) tokenSource.onUnauthorized();
+      const isSessionProbe = (error as AxiosError).config?.url === "/me";
+      if (apiError.status === 401 && !isSessionProbe) onUnauthorized();
       return Promise.reject(apiError);
     },
   );

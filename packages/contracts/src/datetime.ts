@@ -53,7 +53,8 @@ export const addMinutes = (date: ConfigType, minutes: number) => dayjs(date).add
 export const addHours = (date: ConfigType, hours: number) => dayjs(date).add(hours, "hour").toDate();
 export const addDays = (date: ConfigType, days: number) => dayjs(date).add(days, "day").toDate();
 /** Whole seconds from `now` until `target`, never negative. */
-export const secondsUntil = (target: ConfigType, now: ConfigType) => Math.max(0, Math.ceil(dayjs(target).diff(dayjs(now), "millisecond") / 1000));
+export const secondsUntil = (target: ConfigType, now: ConfigType) =>
+  Math.max(0, Math.ceil(dayjs(target).diff(dayjs(now), "millisecond") / 1000));
 /** Fractional hours from `now` until `target` (negative when in the past). */
 export const hoursUntil = (target: ConfigType, now: ConfigType) => dayjs(target).diff(dayjs(now), "hour", true);
 export const isPast = (target: ConfigType, now: ConfigType) => dayjs(target).isBefore(dayjs(now));

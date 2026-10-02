@@ -116,7 +116,9 @@ function match(seed: MatchSeed, now: Date): EventDetail {
     faqs: MATCH_FAQS,
     queueEnabled: seed.queueEnabled ?? false,
     presaleCodeEnabled: false,
-    ...(seed.queueEnabled ? { saleOpensAt: dayjs(now).add(2, "day").add(4, "hour").add(12, "minute").add(36, "second").toISOString() } : {}),
+    ...(seed.queueEnabled
+      ? { saleOpensAt: dayjs(now).add(2, "day").add(4, "hour").add(12, "minute").add(36, "second").toISOString() }
+      : {}),
   };
 }
 

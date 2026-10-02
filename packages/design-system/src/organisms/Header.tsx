@@ -1,17 +1,40 @@
-import { Menu } from "lucide-react";
+import { notificationSchema } from "@repo/contracts";
+import { Bell, ChevronDown, LogOut, Menu } from "lucide-react";
 import { useState } from "react";
 import { z } from "zod";
 import { LinkButton } from "../atoms/Button";
 import { Avatar, Logo } from "../atoms/Identity";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "../components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "../components/ui/sheet";
+import { dateTimeLabel } from "../lib/datetime";
 import { validateProps, zClassName, zFn, zHref, zNode } from "../lib/props";
 import { useUI } from "../lib/provider";
 import { cn } from "../lib/utils";
 
 const navLinkSchema = z.object({ id: z.string().min(1), label: z.string().min(1), href: zHref });
 
+const accountMenuSchema = z.object({
+  links: z.array(z.object({ label: z.string().min(1), href: zHref })),
+  onSignOut: zFn<() => void>(),
+});
+
 const accountSchema = z.discriminatedUnion("status", [
-  z.object({ status: z.literal("signed_in"), initials: z.string().min(1).max(3), name: z.string().min(1), href: zHref }),
+  z.object({
+    status: z.literal("signed_in"),
+    initials: z.string().min(1).max(3),
+    name: z.string().min(1),
+    href: zHref,
+    /** With a menu the avatar opens a dropdown (account links + sign out) instead of linking to `href`. */
+    menu: accountMenuSchema.optional(),
+  }),
   z.object({ status: z.literal("signed_out"), signInHref: zHref, cta: z.object({ label: z.string().min(1), href: zHref }).optional() }),
   z.object({ status: z.literal("loading") }),
 ]);
@@ -22,6 +45,8 @@ export const siteHeaderPropsSchema = z.object({
   account: accountSchema,
   homeHref: zHref.optional(),
   languageToggle: z.object({ label: z.string().min(1), glyph: z.string().min(1), onToggle: zFn<() => void>() }).optional(),
+  /** Rendered beside the account avatar — typically a NotificationBell. */
+  notifications: zNode.optional(),
   className: zClassName,
 });
 
@@ -30,12 +55,37 @@ export type SiteHeaderProps = z.input<typeof siteHeaderPropsSchema>;
 /** Organism · SiteHeader — primary navigation with account state and a mobile menu. */
 export function SiteHeader(props: SiteHeaderProps) {
   validateProps("SiteHeader", siteHeaderPropsSchema, props);
-  const { links, activeId, account, homeHref = "/", languageToggle, className } = props;
+  const { links, activeId, account, homeHref = "/", languageToggle, notifications, className } = props;
   const { LinkComponent } = useUI();
   const [menuOpen, setMenuOpen] = useState(false);
 
   const accountArea =
-    account.status === "signed_in" ? (
+    account.status === "signed_in" && account.menu ? (
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          aria-label={`Account menu: ${account.name}`}
+          className="flex h-11 shrink-0 items-center gap-1 rounded-full pr-1 focus-visible:ring-[3px] focus-visible:ring-gold focus-visible:outline-none"
+        >
+          <Avatar initials={account.initials} size="md" />
+          <ChevronDown className="hidden size-4 text-sub sm:block" aria-hidden="true" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-60 border-line bg-white p-1.5">
+          <DropdownMenuLabel className="flex flex-col px-2.5 py-2">
+            <span className="text-[15px] font-semibold">{account.name}</span>
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator className="bg-line" />
+          {account.menu.links.map((link) => (
+            <DropdownMenuItem key={link.href} asChild className="min-h-11 cursor-pointer px-2.5 text-[15px] focus:bg-paper">
+              <LinkComponent href={link.href}>{link.label}</LinkComponent>
+            </DropdownMenuItem>
+          ))}
+          <DropdownMenuSeparator className="bg-line" />
+          <DropdownMenuItem onSelect={account.menu.onSignOut} className="min-h-11 cursor-pointer px-2.5 text-[15px] focus:bg-paper">
+            <LogOut aria-hidden="true" /> Sign out
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    ) : account.status === "signed_in" ? (
       <LinkComponent
         href={account.href}
         aria-label={`Account: ${account.name}`}
@@ -96,6 +146,7 @@ export function SiteHeader(props: SiteHeaderProps) {
               {languageToggle.glyph}
             </button>
           ) : null}
+          {account.status === "signed_in" ? notifications : null}
           {accountArea}
           <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
             <SheetTrigger asChild>
@@ -131,6 +182,34 @@ export function SiteHeader(props: SiteHeaderProps) {
                       </LinkComponent>
                     </li>
                   ))}
+                  {account.status === "signed_in" && account.menu ? (
+                    <>
+                      <li className="mt-3 border-t border-line px-3 pt-4 pb-1 text-sm font-semibold text-sub">{account.name}</li>
+                      {account.menu.links.map((link) => (
+                        <li key={link.href}>
+                          <LinkComponent
+                            href={link.href}
+                            onClick={() => setMenuOpen(false)}
+                            className="flex min-h-12 items-center rounded-lg px-3 text-base font-medium hover:bg-paper"
+                          >
+                            {link.label}
+                          </LinkComponent>
+                        </li>
+                      ))}
+                      <li>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMenuOpen(false);
+                            account.menu?.onSignOut();
+                          }}
+                          className="flex min-h-12 w-full items-center gap-2 rounded-lg px-3 text-left text-base font-medium hover:bg-paper"
+                        >
+                          <LogOut className="size-4" aria-hidden="true" /> Sign out
+                        </button>
+                      </li>
+                    </>
+                  ) : null}
                   {account.status === "signed_out" && account.cta ? (
                     <li className="pt-3">
                       <LinkButton href={account.cta.href} variant="primary" block size="lg">
@@ -145,6 +224,106 @@ export function SiteHeader(props: SiteHeaderProps) {
         </div>
       </div>
     </header>
+  );
+}
+
+/* ---------- NotificationBell ---------- */
+
+export const notificationBellPropsSchema = z.object({
+  items: z.array(notificationSchema),
+  unread: z.number().int().nonnegative(),
+  onMarkAllRead: zFn<() => void>().optional(),
+  /** Called when the panel opens (e.g. to refresh). */
+  onOpenChange: zFn<(open: boolean) => void>().optional(),
+  allHref: zHref.optional(),
+  className: zClassName,
+});
+
+export type NotificationBellProps = z.input<typeof notificationBellPropsSchema>;
+
+/** Organism · NotificationBell — unread count and the latest updates (orders, transfers, refunds, events). */
+export function NotificationBell(props: NotificationBellProps) {
+  validateProps("NotificationBell", notificationBellPropsSchema, props);
+  const { items, unread, onMarkAllRead, onOpenChange, allHref, className } = props;
+  const { LinkComponent } = useUI();
+  const [open, setOpen] = useState(false);
+  const label = unread ? `Notifications, ${unread} unread` : "Notifications";
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        onOpenChange?.(next);
+      }}
+    >
+      <PopoverTrigger
+        aria-label={label}
+        className={cn(
+          "relative flex size-11 shrink-0 items-center justify-center rounded-lg border border-line bg-white focus-visible:ring-[3px] focus-visible:ring-gold focus-visible:outline-none",
+          className,
+        )}
+      >
+        <Bell className="size-5" aria-hidden="true" />
+        {unread ? (
+          <span
+            aria-hidden="true"
+            className="absolute -top-1 -right-1 flex min-w-5 items-center justify-center rounded-full bg-rose-ink px-1 font-mono text-[11px] leading-5 font-bold text-white"
+          >
+            {unread > 9 ? "9+" : unread}
+          </span>
+        ) : null}
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-[min(92vw,380px)] border-line bg-white p-0">
+        <div className="flex items-center justify-between border-b border-line px-4 py-3">
+          <h2 className="text-base font-semibold">Notifications</h2>
+          {onMarkAllRead && unread ? (
+            <button type="button" onClick={onMarkAllRead} className="min-h-11 text-sm font-semibold text-pitch underline">
+              Mark all as read
+            </button>
+          ) : null}
+        </div>
+        {items.length ? (
+          <ul className="m-0 max-h-[420px] list-none overflow-y-auto p-0">
+            {items.map((item) => {
+              const body = (
+                <>
+                  <span className="flex items-start gap-2">
+                    {!item.read ? <span className="mt-1.5 size-2 shrink-0 rounded-full bg-pitch" aria-label="Unread" role="img" /> : null}
+                    <span className={cn("text-[15px]", !item.read && "font-semibold")}>{item.title}</span>
+                  </span>
+                  <span className="text-sm text-sub">{item.body}</span>
+                  <span className="font-mono text-xs text-muted-ink">{dateTimeLabel(item.createdAt)}</span>
+                </>
+              );
+              return (
+                <li key={item.id} className="border-b border-line last:border-b-0">
+                  {item.href ? (
+                    <LinkComponent href={item.href} onClick={() => setOpen(false)} className="flex flex-col gap-1 px-4 py-3 hover:bg-paper">
+                      {body}
+                    </LinkComponent>
+                  ) : (
+                    <div className="flex flex-col gap-1 px-4 py-3">{body}</div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="px-4 py-8 text-center text-sm text-sub">You’re all caught up.</p>
+        )}
+        {allHref ? (
+          <div className="border-t border-line px-4 py-2 text-center">
+            <LinkComponent
+              href={allHref}
+              onClick={() => setOpen(false)}
+              className="inline-flex min-h-11 items-center text-sm font-semibold text-pitch underline"
+            >
+              See all notifications
+            </LinkComponent>
+          </div>
+        ) : null}
+      </PopoverContent>
+    </Popover>
   );
 }
 

@@ -17,7 +17,12 @@ const FIELDS: Field[] = [
  * The mock payment provider's hosted card page. In production this is the provider's own domain
  * (e.g. Paymob), so card data never touches Matchpass servers. Works without JavaScript.
  */
-export function hostedPaymentPage(input: { action: string; order: StoredOrder; errors?: Record<string, string>; values?: Record<string, string> }) {
+export function hostedPaymentPage(input: {
+  action: string;
+  order: StoredOrder;
+  errors?: Record<string, string>;
+  values?: Record<string, string>;
+}) {
   const { action, order, errors = {}, values = {} } = input;
   const errorCount = Object.keys(errors).length;
   const fields = FIELDS.map((f) => {

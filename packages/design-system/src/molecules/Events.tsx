@@ -141,6 +141,8 @@ export const fanOptionPropsSchema = z.object({
   checked: z.boolean(),
   onCheckedChange: zFn<(checked: boolean) => void>(),
   disabled: z.boolean().optional(),
+  /** Why this fan can't be picked right now (e.g. already has a ticket) — shown instead of the Fan ID note. */
+  unavailableReason: z.string().optional(),
   className: zClassName,
 });
 export type FanOptionProps = z.input<typeof fanOptionPropsSchema>;
@@ -148,8 +150,8 @@ export type FanOptionProps = z.input<typeof fanOptionPropsSchema>;
 /** Molecule · FanOption — checkbox row for choosing who's going. Fans under review can't be picked. */
 export function FanOption(props: FanOptionProps) {
   validateProps("FanOption", fanOptionPropsSchema, props);
-  const { fan, checked, onCheckedChange, disabled, className } = props;
-  const blocked = disabled || fan.status !== "approved";
+  const { fan, checked, onCheckedChange, disabled, unavailableReason, className } = props;
+  const blocked = disabled || !!unavailableReason || fan.status !== "approved";
   const id = `fan-${fan.id}`;
   return (
     <div className={cn("flex min-h-[52px] items-center gap-3 border-t border-line pt-1.5", className)}>
@@ -165,8 +167,12 @@ export function FanOption(props: FanOptionProps) {
         <label htmlFor={id} className={cn("cursor-pointer text-[15px] font-semibold", blocked && "cursor-not-allowed")}>
           {fan.name}
         </label>
-        <span id={`${id}-note`} className={cn("text-xs", fan.status === "approved" ? "text-pitch" : "text-warn")}>
-          {fan.status === "approved" ? `${fan.fanIdMasked} · approved` : fan.fanIdMasked}
+        <span id={`${id}-note`} className={cn("text-xs", fan.status === "approved" && !unavailableReason ? "text-pitch" : "text-warn")}>
+          {unavailableReason
+            ? `${fan.fanIdMasked.split(" ·")[0]} · ${unavailableReason}`
+            : fan.status === "approved"
+              ? `${fan.fanIdMasked} · approved`
+              : fan.fanIdMasked}
         </span>
       </span>
     </div>

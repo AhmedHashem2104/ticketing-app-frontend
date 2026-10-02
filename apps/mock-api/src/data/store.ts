@@ -250,7 +250,8 @@ export class Store {
   heldByOthers(soldKey: string, userId?: string) {
     this.purgeExpiredHolds();
     const keys = new Set<string>();
-    for (const hold of this.holds.values()) if (hold.soldKey === soldKey && hold.userId !== userId) hold.seatKeys.forEach((k) => keys.add(k));
+    for (const hold of this.holds.values())
+      if (hold.soldKey === soldKey && hold.userId !== userId) hold.seatKeys.forEach((k) => keys.add(k));
     return keys;
   }
 
@@ -291,7 +292,10 @@ export class Store {
   issueTicket(
     userId: string,
     orderId: string,
-    event: Pick<EventDetail, "id" | "slug" | "kind" | "layout" | "theme" | "tag" | "title" | "startsAt" | "gatesOpenAt" | "doorsAt" | "venue">,
+    event: Pick<
+      EventDetail,
+      "id" | "slug" | "kind" | "layout" | "theme" | "tag" | "title" | "startsAt" | "gatesOpenAt" | "doorsAt" | "venue"
+    >,
     spec: TicketSpec,
     index: number,
     of: number,
@@ -316,7 +320,11 @@ export class Store {
       dateLabel: stubDateLabel(event.startsAt),
       whenLabel: `${dayLabel(event.startsAt)} · ${isMatch ? `Kick-off ${timeLabel(event.startsAt)} · Gates ${event.gatesOpenAt ?? ""}` : isCinema ? `${timeLabel(event.startsAt)} · ${event.venue.name}` : `Doors ${event.doorsAt ?? ""} · Show ${timeLabel(event.startsAt)}`}`,
       time: timeLabel(event.startsAt),
-      timeLabel: isMatch ? `Kick-off · gates open ${event.gatesOpenAt ?? ""}` : isCinema ? "Screen 4 · trailers 15 min" : `On stage · doors ${event.doorsAt ?? ""}`,
+      timeLabel: isMatch
+        ? `Kick-off · gates open ${event.gatesOpenAt ?? ""}`
+        : isCinema
+          ? "Screen 4 · trailers 15 min"
+          : `On stage · doors ${event.doorsAt ?? ""}`,
       venueName: event.venue.name,
       venueArea: event.venue.area,
       priceLabel: spec.priceLabel,
@@ -352,7 +360,9 @@ export class Store {
   /** Fan ID numbers that already hold a live ticket for an event. */
   fanNumbersWithTickets(eventId: string) {
     const live = new Set<Ticket["status"]>(["valid", "listed", "refund_pending", "transfer_pending"]);
-    return new Set([...this.tickets.values()].filter((t) => t.eventId === eventId && live.has(t.status) && t.fanNumber).map((t) => t.fanNumber!));
+    return new Set(
+      [...this.tickets.values()].filter((t) => t.eventId === eventId && live.has(t.status) && t.fanNumber).map((t) => t.fanNumber!),
+    );
   }
 
   /* ---------- entry QR ---------- */
@@ -371,7 +381,8 @@ export class Store {
     const [prefix, payload, sig] = token.split(".");
     if (prefix !== "MPQ1" || !payload || !sig) return { ok: false, reason: "tampered" };
     const expected = createHmac("sha256", this.options.qrSecret).update(payload).digest("base64url").slice(0, 32);
-    if (expected.length !== sig.length || !timingSafeEqual(Buffer.from(expected), Buffer.from(sig))) return { ok: false, reason: "tampered" };
+    if (expected.length !== sig.length || !timingSafeEqual(Buffer.from(expected), Buffer.from(sig)))
+      return { ok: false, reason: "tampered" };
     const [ticketId, window] = Buffer.from(payload, "base64url").toString().split(".");
     // Accept the current and the previous window to absorb clock skew at the gate.
     if (this.qrWindow() - Number(window) > 1) return { ok: false, reason: "expired" };
@@ -401,7 +412,9 @@ export class Store {
       order.status = "expired";
       return order;
     }
-    const tickets = hold.ticketSpecs.map((spec, i) => this.issueTicket(order.userId, order.id, event, spec, i + 1, hold.ticketSpecs.length));
+    const tickets = hold.ticketSpecs.map((spec, i) =>
+      this.issueTicket(order.userId, order.id, event, spec, i + 1, hold.ticketSpecs.length),
+    );
     hold.seatKeys.forEach((key) => this.soldFor(hold.soldKey).add(key));
     if (hold.listingId) {
       const listing = this.listings.get(hold.listingId);
@@ -410,7 +423,12 @@ export class Store {
         listing.detail = `${listing.price} EGP · paid out ${listing.payout.toFixed(2)}`;
         const sellerTicket = this.tickets.get(listing.ticketId);
         if (sellerTicket) sellerTicket.status = "resold";
-        this.notify(listing.userId, { kind: "order", title: "Your resale ticket sold", body: `${listing.title} sold for ${listing.price} EGP.`, href: "/resale" });
+        this.notify(listing.userId, {
+          kind: "order",
+          title: "Your resale ticket sold",
+          body: `${listing.title} sold for ${listing.price} EGP.`,
+          href: "/resale",
+        });
       }
     }
     if (hold.promoCode) this.users.get(order.userId)?.usedPromos.push(hold.promoCode);
@@ -418,7 +436,12 @@ export class Store {
     order.fulfilled = true;
     order.tickets = tickets.map((t) => this.publicTicket(t));
     this.holds.delete(hold.id);
-    this.notify(order.userId, { kind: "order", title: "You're going!", body: `${order.eventTitle} · order ${order.reference}`, href: `/orders/${order.id}` });
+    this.notify(order.userId, {
+      kind: "order",
+      title: "You're going!",
+      body: `${order.eventTitle} · order ${order.reference}`,
+      href: `/orders/${order.id}`,
+    });
     return order;
   }
 
@@ -486,9 +509,15 @@ export class Store {
         secondaryAction: "Download refund receipt",
       };
       this.refunds.set(refund.id, refund);
-      this.notify(userId, { kind: "event", title: `${event.title} has been cancelled`, body: "Your tickets were refunded in full, including fees.", href: "/refunds" });
+      this.notify(userId, {
+        kind: "event",
+        title: `${event.title} has been cancelled`,
+        body: "Your tickets were refunded in full, including fees.",
+        href: "/refunds",
+      });
     }
-    for (const listing of this.listings.values()) if (listing.eventId === event.id && listing.status === "listed") this.listings.delete(listing.id);
+    for (const listing of this.listings.values())
+      if (listing.eventId === event.id && listing.status === "listed") this.listings.delete(listing.id);
   }
 }
 
@@ -499,10 +528,41 @@ function seed(store: Store) {
   const omarId = "usr_omar";
   const youssefId = "usr_youssef";
   const fans: StoredFan[] = [
-    { id: "fan_omar", name: "Omar K. (you)", initials: "OK", fanIdMasked: "Fan ID •••• 4821", status: "approved", isSelf: true, number: "221044174821" },
-    { id: "fan_youssef", name: "Youssef A.", initials: "YA", fanIdMasked: "Fan ID •••• 1907", status: "approved", isSelf: false, number: "221044171907" },
-    { id: "fan_mariam", name: "Mariam K.", initials: "MK", fanIdMasked: "Fan ID •••• 3350", status: "approved", isSelf: false, number: "221044173350" },
-    { id: "fan_hassan", name: "Hassan M.", initials: "HM", fanIdMasked: "Fan ID under review — can’t buy yet", status: "under_review", isSelf: false },
+    {
+      id: "fan_omar",
+      name: "Omar K. (you)",
+      initials: "OK",
+      fanIdMasked: "Fan ID •••• 4821",
+      status: "approved",
+      isSelf: true,
+      number: "221044174821",
+    },
+    {
+      id: "fan_youssef",
+      name: "Youssef A.",
+      initials: "YA",
+      fanIdMasked: "Fan ID •••• 1907",
+      status: "approved",
+      isSelf: false,
+      number: "221044171907",
+    },
+    {
+      id: "fan_mariam",
+      name: "Mariam K.",
+      initials: "MK",
+      fanIdMasked: "Fan ID •••• 3350",
+      status: "approved",
+      isSelf: false,
+      number: "221044173350",
+    },
+    {
+      id: "fan_hassan",
+      name: "Hassan M.",
+      initials: "HM",
+      fanIdMasked: "Fan ID under review — can’t buy yet",
+      status: "under_review",
+      isSelf: false,
+    },
   ];
   store.users.set(omarId, {
     id: omarId,
@@ -527,7 +587,17 @@ function seed(store: Store) {
     email: "youssef.a@mail.com",
     password: SECOND_USER.password,
     fanId: { status: "approved", number: "2210 4417 1907", validUntil: "Oct 2029", nameEn: "Youssef Adel" },
-    fans: [{ id: "fan_youssef_self", name: "Youssef A. (you)", initials: "YA", fanIdMasked: "Fan ID •••• 1907", status: "approved", isSelf: true, number: "221044171907" }],
+    fans: [
+      {
+        id: "fan_youssef_self",
+        name: "Youssef A. (you)",
+        initials: "YA",
+        fanIdMasked: "Fan ID •••• 1907",
+        status: "approved",
+        isSelf: true,
+        number: "221044171907",
+      },
+    ],
     credit: 0,
     preferences: { sms: true, email: false, marketing: false },
     usedPromos: [],
@@ -542,7 +612,17 @@ function seed(store: Store) {
     phoneMasked: "+20 11•• ••• 555",
     password: "matchpass123",
     fanId: { status: "approved", number: "2210 4417 5555", validUntil: "Oct 2029", nameEn: "Karim Nabil" },
-    fans: [{ id: "fan_karim", name: "Karim N. (you)", initials: "KN", fanIdMasked: "Fan ID •••• 5555", status: "approved", isSelf: true, number: "221044175555" }],
+    fans: [
+      {
+        id: "fan_karim",
+        name: "Karim N. (you)",
+        initials: "KN",
+        fanIdMasked: "Fan ID •••• 5555",
+        status: "approved",
+        isSelf: true,
+        number: "221044175555",
+      },
+    ],
     credit: 0,
     preferences: { sms: true, email: true, marketing: false },
     usedPromos: [],
@@ -558,12 +638,21 @@ function seed(store: Store) {
   store.soldFor(derby.id).add("W3-L-18").add("W3-L-19");
 
   const layla = event(EVENT_IDS.layla);
-  seedOrder(store, omarId, layla, [1, 2].map((n) => gaSpec("Omar K.", "Golden", "Standing", "B", `${n} / 2`, layla.priceFrom * 2)));
+  seedOrder(
+    store,
+    omarId,
+    layla,
+    [1, 2].map((n) => gaSpec("Omar K.", "Golden", "Standing", "B", `${n} / 2`, layla.priceFrom * 2)),
+  );
 
   const film = event(EVENT_IDS.film);
   // Three hours from now, rounded up to the next quarter hour.
   const soon = dayjs(addHours(now, 3));
-  const filmAt = soon.add((15 - (soon.minute() % 15)) % 15, "minute").second(0).millisecond(0).toISOString();
+  const filmAt = soon
+    .add((15 - (soon.minute() % 15)) % 15, "minute")
+    .second(0)
+    .millisecond(0)
+    .toISOString();
   seedOrder(store, omarId, { ...film, startsAt: filmAt }, [
     {
       holderName: "Omar K.",
@@ -734,7 +823,15 @@ function seed(store: Store) {
   });
 }
 
-export function matchSpec(holder: string, detail: string, block: string, row: string, seat: number, price: number, fanNumber?: string): TicketSpec {
+export function matchSpec(
+  holder: string,
+  detail: string,
+  block: string,
+  row: string,
+  seat: number,
+  price: number,
+  fanNumber?: string,
+): TicketSpec {
   const side = block[0];
   const gate = side === "W" ? "7" : side === "E" ? "10" : side === "N" ? "2" : side === "V" ? "5" : "13";
   return {

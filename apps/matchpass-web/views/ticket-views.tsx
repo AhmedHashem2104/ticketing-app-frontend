@@ -1,7 +1,7 @@
 "use client";
 
 import type { Alert, Ticket } from "@repo/contracts";
-import { MessagePage, MyTicketsPage, TicketWalletPage } from "@repo/design-system";
+import { MessagePage, MyTicketsPage, TicketWalletPage, TransfersPage } from "@repo/design-system";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -11,7 +11,17 @@ import { endpoints } from "@/lib/api/endpoints";
 import { queryKeys } from "@/lib/api/keys";
 import { RequireAuth } from "@/lib/auth/session";
 import { useFeatureFlags } from "@/lib/feature-flags/client";
-import { useAlerts, useRefunds, useTickets, useTransfer } from "@/lib/queries";
+import {
+  useAcceptTransfer,
+  useAlerts,
+  useCancelTransfer,
+  useDeclineTransfer,
+  useRefunds,
+  useTicketQr,
+  useTickets,
+  useTransfer,
+  useTransfers,
+} from "@/lib/queries";
 import { routes, ticketGroupKey } from "@/lib/routes";
 import { PageError, PageLoading } from "./shared";
 
@@ -36,7 +46,7 @@ const NOTICES: Record<string, Alert> = {
     id: "notice_transferred",
     tone: "info",
     title: "Ticket sent",
-    body: "They have 24 hours to accept. Until then you can still see it in Past.",
+    body: "They have 24 hours to accept. Until they do, you can cancel the transfer from the ticket.",
   },
 };
 
@@ -57,6 +67,9 @@ function MyTickets() {
   const nav = useTicketNav(scope, upcoming.data?.length);
   const [walletNotice, setWalletNotice] = useState(false);
   const notice = NOTICES[params.get("notice") ?? ""];
+  const transfers = useTransfers();
+  const cancelTransfer = useCancelTransfer();
+  const pendingTransferFor = (ticket: Ticket) => transfers.data?.outgoing.find((t) => t.ticketId === ticket.id && t.status === "pending");
 
   return (
     <MyTicketsPage
@@ -84,6 +97,14 @@ function MyTickets() {
       resaleHref={flags.resale ? (t) => routes.resale(t.id) : undefined}
       refundHref={flags.refunds ? (t) => routes.newRefund(t.orderId) : undefined}
       onAddToWallet={flags.addToWallet ? () => setWalletNotice(true) : undefined}
+      onCancelTransfer={
+        flags.ticketTransfer
+          ? (ticket) => {
+              const pending = pendingTransferFor(ticket);
+              if (pending) cancelTransfer.mutate(pending.id);
+            }
+          : undefined
+      }
       browseHref={routes.events()}
     />
   );
@@ -110,8 +131,12 @@ function Wallet({ ticketId }: { ticketId: string }) {
   const params = useSearchParams();
   const tickets = useTickets();
   const transfer = useTransfer();
+  const transfers = useTransfers();
+  const cancelTransfer = useCancelTransfer();
   const [transferOpen, setTransferOpen] = useState(params.get("transfer") === "1");
   const groups = useMemo(() => groupTickets(tickets.data ?? []), [tickets.data]);
+  const current = tickets.data?.find((t) => t.id === ticketId);
+  const qr = useTicketQr(ticketId, !!current?.qrReady && current.status === "valid");
 
   if (tickets.isPending) return <PageLoading active="tickets" label="Loading your tickets" />;
   if (tickets.isError) return <PageError error={tickets.error} onRetry={() => void tickets.refetch()} active="tickets" />;
@@ -155,7 +180,58 @@ function Wallet({ ticketId }: { ticketId: string }) {
             }
           : undefined
       }
+      qr={{ token: qr.data, error: qr.isError ? errorMessage(qr.error) : undefined, onExpire: () => void qr.refetch() }}
+      onCancelTransfer={(t) => {
+        const pending = transfers.data?.outgoing.find((x) => x.ticketId === t.id && x.status === "pending");
+        if (pending) cancelTransfer.mutate(pending.id);
+      }}
       resaleHref={flags.resale ? (t) => routes.resale(t.id) : undefined}
+      backHref={routes.myTickets}
+    />
+  );
+}
+
+/* ---------- Transfers ---------- */
+
+export function TransfersView() {
+  return <RequireAuth>{() => <Transfers />}</RequireAuth>;
+}
+
+function Transfers() {
+  const transfers = useTransfers();
+  const accept = useAcceptTransfer();
+  const decline = useDeclineTransfer();
+  const cancel = useCancelTransfer();
+  const [message, setMessage] = useState<{ tone: "success" | "danger"; text: string }>();
+  const busy = accept.isPending
+    ? accept.variables
+    : decline.isPending
+      ? decline.variables
+      : cancel.isPending
+        ? cancel.variables
+        : undefined;
+  const run = (action: typeof accept | typeof decline | typeof cancel, success: string) => (id: string) =>
+    action.mutate(id, {
+      onSuccess: () => setMessage({ tone: "success", text: success }),
+      onError: (error) => setMessage({ tone: "danger", text: errorMessage(error) ?? "Something went wrong" }),
+    });
+  return (
+    <TransfersPage
+      header={<AppHeader active="tickets" />}
+      status={transfers.isPending ? "loading" : transfers.isError ? "error" : "success"}
+      onRetry={() => void transfers.refetch()}
+      incoming={{
+        transfers: transfers.data?.incoming ?? [],
+        onAccept: run(accept, "Ticket accepted — it's in My tickets now."),
+        onDecline: run(decline, "Transfer declined. The ticket went back to the sender."),
+        busyId: busy,
+      }}
+      outgoing={{
+        transfers: transfers.data?.outgoing ?? [],
+        onCancel: run(cancel, "Transfer cancelled — the ticket is yours again."),
+        busyId: busy,
+      }}
+      message={message}
       backHref={routes.myTickets}
     />
   );

@@ -3,11 +3,12 @@ import type { EventSummary, Ticket } from "@repo/contracts";
 /** Typed route builders — the single source of truth for app URLs. */
 export const routes = {
   home: "/",
-  events: (tab: "matches" | "concerts" = "matches") => `/events?tab=${tab}`,
+  events: (tab: "matches" | "concerts" | "cinema" = "matches") => `/events?tab=${tab}`,
   event: (slug: string) => `/events/${slug}`,
   queue: (slug: string) => `/events/${slug}/queue`,
   tickets: (slug: string) => `/events/${slug}/tickets`,
   seats: (slug: string) => `/events/${slug}/seats`,
+  eventResale: (slug: string) => `/events/${slug}/resale`,
   cinema: "/cinema",
   checkout: (holdId: string) => `/checkout/${holdId}`,
   order: (orderId: string) => `/orders/${orderId}`,
@@ -20,6 +21,10 @@ export const routes = {
   signUp: "/signup",
   login: (next?: string) => (next ? `/login?next=${encodeURIComponent(next)}` : "/login"),
   fanId: "/fan-id",
+  forgotPassword: "/forgot-password",
+  account: "/account",
+  transfers: "/transfers",
+  notifications: "/notifications",
 };
 
 export const eventHref = (event: Pick<EventSummary, "slug" | "kind">) =>

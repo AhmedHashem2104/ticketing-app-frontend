@@ -1,10 +1,27 @@
 "use client";
 
-import { SiteFooter, SiteHeader } from "@repo/design-system";
+import { dayjs } from "@repo/contracts";
+import { NotificationBell, SiteFooter, SiteHeader } from "@repo/design-system";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth/session";
 import { useFeatureFlags } from "@/lib/feature-flags/client";
+import { useMarkNotificationsRead, useNotifications } from "@/lib/queries";
 import { routes } from "@/lib/routes";
+
+function AppNotifications() {
+  const list = useNotifications();
+  const markRead = useMarkNotificationsRead();
+  return (
+    <NotificationBell
+      items={(list.data?.items ?? []).slice(0, 8)}
+      unread={list.data?.unread ?? 0}
+      onMarkAllRead={() => markRead.mutate(undefined)}
+      onOpenChange={(open) => (open ? void list.refetch() : undefined)}
+      allHref={routes.notifications}
+    />
+  );
+}
 
 export type NavId = "matches" | "concerts" | "cinema" | "resale" | "tickets";
 
@@ -12,6 +29,7 @@ export type NavId = "matches" | "concerts" | "cinema" | "resale" | "tickets";
 export function AppHeader({ active }: { active?: NavId }) {
   const flags = useFeatureFlags();
   const auth = useAuth();
+  const router = useRouter();
   const [rtl, setRtl] = useState(false);
 
   useEffect(() => {
@@ -22,14 +40,31 @@ export function AppHeader({ active }: { active?: NavId }) {
   const links = [
     { id: "matches", label: "Matches", href: routes.events("matches") },
     { id: "concerts", label: "Concerts & events", href: routes.events("concerts") },
-    ...(flags.cinema ? [{ id: "cinema", label: "Cinema", href: routes.cinema }] : []),
+    ...(flags.cinema ? [{ id: "cinema", label: "Cinema", href: routes.events("cinema") }] : []),
     ...(flags.resale ? [{ id: "resale", label: "Resale", href: routes.resale() }] : []),
     { id: "tickets", label: "My tickets", href: routes.myTickets },
   ];
 
   const account =
     auth.status === "signed_in"
-      ? { status: "signed_in" as const, initials: auth.user.initials, name: auth.user.fullName, href: routes.myTickets }
+      ? {
+          status: "signed_in" as const,
+          initials: auth.user.initials,
+          name: auth.user.fullName,
+          href: routes.account,
+          menu: {
+            links: [
+              { label: "My tickets", href: routes.myTickets },
+              { label: "Ticket transfers", href: routes.transfers },
+              ...(flags.fanId ? [{ label: auth.user.fanId.status === "approved" ? "Fan ID" : "Get your Fan ID", href: routes.fanId }] : []),
+              { label: "Account & preferences", href: routes.account },
+            ],
+            onSignOut: async () => {
+              await auth.signOut();
+              router.replace(routes.home);
+            },
+          },
+        }
       : auth.status === "signed_out"
         ? {
             status: "signed_out" as const,
@@ -43,6 +78,7 @@ export function AppHeader({ active }: { active?: NavId }) {
       links={links}
       activeId={active}
       account={account}
+      notifications={auth.status === "signed_in" && flags.notificationCentre ? <AppNotifications /> : undefined}
       languageToggle={
         flags.arabicLanguage
           ? { label: rtl ? "Switch to English" : "Switch to Arabic", glyph: rtl ? "EN" : "ع", onToggle: () => setRtl((v) => !v) }
@@ -57,7 +93,7 @@ export function AppFooter() {
   return (
     <SiteFooter
       tagline="Official tickets for football, concerts and live events."
-      legal={`© ${new Date().getFullYear()} Matchpass. Prices in Egyptian pounds and include VAT.`}
+      legal={`© ${dayjs().year()} Matchpass. Prices in Egyptian pounds and include VAT.`}
       columns={[
         {
           title: "Fans",
@@ -81,8 +117,9 @@ export function AppFooter() {
           links: [
             { label: "Help centre", href: "/info/help" },
             { label: "Terms of sale", href: "/info/terms" },
-            ...(flags.refunds ? [{ label: "Refund policy", href: routes.refunds }] : []),
+            { label: "Refund policy", href: "/info/refund-policy" },
             { label: "Privacy policy", href: "/info/privacy" },
+            { label: "Contact us", href: "/info/contact" },
           ],
         },
       ]}

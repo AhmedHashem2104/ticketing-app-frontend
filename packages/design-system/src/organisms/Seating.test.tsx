@@ -45,6 +45,21 @@ describe("ZonePicker", () => {
 });
 
 describe("FanSelector", () => {
+  it("blocks fans who already have a ticket and says why", () => {
+    renderUI(
+      <FanSelector
+        fans={fans}
+        value={[]}
+        onValueChange={() => {}}
+        max={4}
+        unavailable={{ fan_youssef: "Already has a ticket for this match" }}
+      />,
+    );
+    expect(screen.getByRole("checkbox", { name: "Youssef A." })).toBeDisabled();
+    expect(screen.getByText("Fan ID •••• 1907 · Already has a ticket for this match")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Omar K. (you)" })).toBeEnabled();
+  });
+
   it("adds and removes fans up to the maximum", async () => {
     function Harness() {
       const [value, setValue] = useState(["fan_omar"]);

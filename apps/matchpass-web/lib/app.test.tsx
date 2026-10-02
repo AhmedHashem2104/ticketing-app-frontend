@@ -5,7 +5,7 @@ import { render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { AppHeader } from "@/components/app-chrome";
-import { safeNextPath, sessionStore } from "./auth/session";
+import { safeNextPath } from "./auth/session";
 import { buildIcs, buildReceipt } from "./downloads";
 import { FeatureFlagsProvider } from "./feature-flags/client";
 import { allFlagsOff, type FeatureFlags } from "./feature-flags/schema";
@@ -18,9 +18,12 @@ vi.mock("next/navigation", () => ({
 }));
 
 function wrap(flags: Partial<FeatureFlags>, children: ReactNode) {
+  // A signed-out visitor: `GET /me` already answered "no session".
+  const queryClient = new QueryClient();
+  queryClient.setQueryData(["me"], null);
   return (
     <FeatureFlagsProvider flags={{ ...allFlagsOff, ...flags }}>
-      <QueryClientProvider client={new QueryClient()}>
+      <QueryClientProvider client={queryClient}>
         <UIProvider>{children}</UIProvider>
       </QueryClientProvider>
     </FeatureFlagsProvider>
@@ -29,7 +32,6 @@ function wrap(flags: Partial<FeatureFlags>, children: ReactNode) {
 
 describe("AppHeader feature flags", () => {
   it("hides navigation for disabled features", () => {
-    sessionStore.setToken(null);
     render(wrap({}, <AppHeader />));
     const nav = screen.getByRole("navigation", { name: "Main" });
     expect(within(nav).queryByRole("link", { name: "Cinema" })).not.toBeInTheDocument();
@@ -39,27 +41,18 @@ describe("AppHeader feature flags", () => {
   });
 
   it("shows them when enabled", () => {
-    sessionStore.setToken(null);
     render(wrap({ cinema: true, resale: true, fanId: true, arabicLanguage: true }, <AppHeader active="resale" />));
     const nav = screen.getByRole("navigation", { name: "Main" });
-    expect(within(nav).getByRole("link", { name: "Cinema" })).toHaveAttribute("href", "/cinema");
+    expect(within(nav).getByRole("link", { name: "Cinema" })).toHaveAttribute("href", "/events?tab=cinema");
     expect(within(nav).getByRole("link", { name: "Resale" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", { name: "Get your Fan ID" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Switch to Arabic" })).toBeInTheDocument();
   });
 });
 
-describe("session store", () => {
-  it("persists the token and notifies subscribers", () => {
-    const listener = vi.fn();
-    const unsubscribe = sessionStore.subscribe(listener);
-    sessionStore.setToken("abc");
-    expect(localStorage.getItem("matchpass.session")).toBe("abc");
-    expect(sessionStore.getToken()).toBe("abc");
-    sessionStore.setToken(null);
-    expect(localStorage.getItem("matchpass.session")).toBeNull();
-    expect(listener).toHaveBeenCalledTimes(2);
-    unsubscribe();
+describe("session", () => {
+  it("keeps no token in browser storage", () => {
+    expect(localStorage.length).toBe(0);
   });
 
   it("only allows same-site redirects after login", () => {
@@ -67,6 +60,7 @@ describe("session store", () => {
     expect(safeNextPath("//evil.test")).toBe("/");
     expect(safeNextPath("https://evil.test", "/home")).toBe("/home");
     expect(safeNextPath(null)).toBe("/");
+    expect(safeNextPath("/\\evil.test")).toBe("/");
   });
 });
 

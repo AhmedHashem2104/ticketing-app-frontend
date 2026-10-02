@@ -332,7 +332,11 @@ export function OrderPaymentStatus(props: OrderPaymentStatusProps) {
   return (
     <section aria-labelledby="payment-status-title" className={cn("flex flex-col items-center gap-5 text-center", className)}>
       <span className="flex size-20 items-center justify-center rounded-full bg-gold" aria-hidden="true">
-        {isFawry ? <ReceiptText className="size-10 text-ink" /> : <Loader2 className="size-10 animate-spin text-ink motion-reduce:animate-none" />}
+        {isFawry ? (
+          <ReceiptText className="size-10 text-ink" />
+        ) : (
+          <Loader2 className="size-10 animate-spin text-ink motion-reduce:animate-none" />
+        )}
       </span>
       <Heading as="h1" id="payment-status-title" size="4xl">
         {isFawry ? "Almost there" : isCard ? "Finish paying by card" : "Waiting for your payment"}

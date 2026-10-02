@@ -1,10 +1,15 @@
 "use client";
 
-import type { EventsQuery, Refund } from "@repo/contracts";
+import type { EventsQuery, Order, Refund } from "@repo/contracts";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { endpoints } from "./api/endpoints";
 import { queryKeys } from "./api/keys";
-import { useToken } from "./auth/session";
+
+/** True once `GET /me` confirmed a session (shares the cache entry with useAuth). */
+export function useSignedIn() {
+  const me = useQuery({ queryKey: queryKeys.me, queryFn: endpoints.meOrNull, staleTime: 60_000, retry: false });
+  return !!me.data;
+}
 
 /* ---------- Catalog ---------- */
 
@@ -27,9 +32,24 @@ export const useCinemaSeats = (slug: string, showtimeId: string | undefined) =>
   });
 
 export const useAlerts = () => {
-  const token = useToken();
-  return useQuery({ queryKey: queryKeys.alerts, queryFn: endpoints.alerts, enabled: !!token });
+  const signedIn = useSignedIn();
+  return useQuery({ queryKey: queryKeys.alerts, queryFn: endpoints.alerts, enabled: signedIn });
 };
+
+/** Which linked Fan IDs can still get a ticket for a match, as `{ fanId: reason }` for the unavailable ones. */
+export function useUnavailableFans(slug: string, enabled: boolean) {
+  const query = useQuery({
+    queryKey: queryKeys.fanEligibility(slug),
+    queryFn: () => endpoints.fanEligibility(slug),
+    enabled,
+    staleTime: 10_000,
+  });
+  const unavailable = Object.fromEntries((query.data ?? []).filter((e) => !e.eligible && e.reason).map((e) => [e.fanId, e.reason!]));
+  return { unavailable, ready: !enabled || query.isSuccess || query.isError };
+}
+
+export const useResaleOffers = (slug: string) =>
+  useQuery({ queryKey: queryKeys.resaleOffers(slug), queryFn: () => endpoints.resaleOffers(slug), staleTime: 10_000 });
 
 export const useNotify = () => useMutation({ mutationFn: (slug: string) => endpoints.notify(slug) });
 export const usePresale = (slug: string) => useMutation({ mutationFn: (code: string) => endpoints.presale(slug, code) });
@@ -86,20 +106,63 @@ export function useCreateOrder() {
   });
 }
 
-export const useOrder = (id: string) => useQuery({ queryKey: queryKeys.order(id), queryFn: () => endpoints.order(id) });
+/** Polls while a payment is in progress (wallet / InstaPay approvals, Fawry bills). */
+export const useOrder = (id: string) =>
+  useQuery({
+    queryKey: queryKeys.order(id),
+    queryFn: () => endpoints.order(id),
+    refetchInterval: (query) => {
+      const order = query.state.data as Order | undefined;
+      if (order?.status !== "pending_payment") return false;
+      return order.payment.method === "fawry" ? 15_000 : 2_000;
+    },
+  });
 
 /* ---------- Tickets, resale & refunds ---------- */
 
 export const useTickets = () => useQuery({ queryKey: queryKeys.tickets("upcoming"), queryFn: () => endpoints.tickets("upcoming") });
+
+/** Short-lived signed entry token; refetched whenever the current one expires. */
+export const useTicketQr = (ticketId: string | undefined, enabled: boolean) =>
+  useQuery({
+    queryKey: queryKeys.ticketQr(ticketId ?? ""),
+    queryFn: () => endpoints.ticketQr(ticketId!),
+    enabled: !!ticketId && enabled,
+    staleTime: 0,
+    gcTime: 0,
+    retry: 2,
+    refetchOnWindowFocus: true,
+  });
 
 export function useTransfer() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ ticketId, ...body }: Parameters<typeof endpoints.transfer>[1] & { ticketId: string }) =>
       endpoints.transfer(ticketId, body),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["tickets"] }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["tickets"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.transfers });
+    },
   });
 }
+
+export const useTransfers = () => useQuery({ queryKey: queryKeys.transfers, queryFn: endpoints.transfers });
+
+function useTransferAction(action: (id: string) => Promise<unknown>) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: action,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.transfers });
+      void queryClient.invalidateQueries({ queryKey: ["tickets"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.alerts });
+    },
+  });
+}
+
+export const useAcceptTransfer = () => useTransferAction(endpoints.acceptTransfer);
+export const useDeclineTransfer = () => useTransferAction(endpoints.declineTransfer);
+export const useCancelTransfer = () => useTransferAction(endpoints.cancelTransfer);
 
 export const useListings = () => useQuery({ queryKey: queryKeys.listings, queryFn: endpoints.listings });
 
@@ -161,9 +224,40 @@ export const useVerifyOtp = () =>
   });
 export const useResendCode = () => useMutation({ mutationFn: endpoints.resendCode });
 export const useLogin = () => useMutation({ mutationFn: endpoints.login });
-export const useFanIdScan = () => useMutation({ mutationFn: endpoints.scanFanId });
+export const useForgotPassword = () => useMutation({ mutationFn: endpoints.forgotPassword });
+export const useResetPassword = () => useMutation({ mutationFn: endpoints.resetPassword });
+export const useFanIdDocuments = () => useMutation({ mutationFn: endpoints.uploadFanIdDocuments });
 
 export function useFanIdSubmit() {
   const queryClient = useQueryClient();
-  return useMutation({ mutationFn: endpoints.submitFanId, onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["me"] }) });
+  return useMutation({
+    mutationFn: endpoints.submitFanId,
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.me }),
+  });
+}
+
+export function useUpdatePreferences() {
+  const queryClient = useQueryClient();
+  return useMutation({ mutationFn: endpoints.updatePreferences, onSuccess: (user) => queryClient.setQueryData(queryKeys.me, user) });
+}
+
+function useFanMutation<T>(fn: (arg: T) => Promise<unknown>) {
+  const queryClient = useQueryClient();
+  return useMutation({ mutationFn: fn, onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.me }) });
+}
+
+export const useLinkFan = () => useFanMutation(endpoints.linkFan);
+export const useUnlinkFan = () => useFanMutation(endpoints.unlinkFan);
+
+/* ---------- Notifications ---------- */
+
+export const useNotifications = (enabled = true) =>
+  useQuery({ queryKey: queryKeys.notifications, queryFn: endpoints.notifications, enabled, refetchInterval: 60_000 });
+
+export function useMarkNotificationsRead() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (ids?: string[]) => endpoints.markNotificationsRead(ids),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.notifications }),
+  });
 }

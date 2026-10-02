@@ -22,13 +22,25 @@ import {
   refundInReview,
   refundOptions,
   stadiumMap,
+  fawryOrder,
+  incomingTransfer,
+  notifications,
+  outgoingTransfer,
+  resaleOffers,
+  user,
 } from "../fixtures";
 import { bestTogether, toggleSeat } from "../lib/seating";
 import { EventBanner } from "../organisms/EventDetail";
 import { SiteFooter, SiteHeader } from "../organisms/Header";
 import {
+  AccountPage,
   FanIdPage,
+  ForgotPasswordPage,
+  InfoPage,
   LoginPage,
+  NotificationsPage,
+  ResaleMarketPage,
+  TransfersPage,
   MessagePage,
   MyTicketsPage,
   RefundRequestPage,
@@ -480,7 +492,9 @@ export const SignUpOtp: Story = {
   ),
 };
 
-export const Login: Story = { render: () => <LoginPage brand={brand} login={{ onSubmit: () => {}, signUpHref: "/signup" }} /> };
+export const Login: Story = {
+  render: () => <LoginPage brand={brand} login={{ onSubmit: () => {}, signUpHref: "/signup", forgotHref: "/forgot-password" }} />,
+};
 
 function FanIdDemo() {
   const [step, setStep] = useState(1);
@@ -517,6 +531,85 @@ export const NotFound: Story = {
       title="Page not found"
       body="The page you're looking for doesn't exist."
       action={{ label: "Go to the home page", href: "/" }}
+    />
+  ),
+};
+
+export const Account: Story = {
+  render: () => (
+    <AccountPage
+      header={header()}
+      status="success"
+      profile={{ user, fanIdHref: "/fan-id", onSignOut: () => {} }}
+      fans={{ fans, onLink: () => {}, onUnlink: () => {}, canLink: true }}
+      preferences={{ defaultValues: user.preferences, onSubmit: () => {} }}
+      links={[
+        { label: "Ticket transfers", description: "Accept tickets sent to you", href: "/transfers" },
+        { label: "Refunds", description: "Track refund requests", href: "/refunds" },
+      ]}
+    />
+  ),
+};
+
+export const ForgotPassword: Story = {
+  render: () => (
+    <ForgotPasswordPage
+      brand={brand}
+      form={{ stage: "request", onRequest: () => {}, onReset: () => {}, onStartOver: () => {}, loginHref: "/login" }}
+    />
+  ),
+};
+
+export const Transfers: Story = {
+  render: () => (
+    <TransfersPage
+      header={header("tickets")}
+      status="success"
+      incoming={{ transfers: [incomingTransfer], onAccept: () => {}, onDecline: () => {} }}
+      outgoing={{ transfers: [outgoingTransfer], onCancel: () => {} }}
+      backHref="/tickets"
+    />
+  ),
+};
+
+export const Notifications: Story = {
+  render: () => <NotificationsPage header={header()} status="success" items={notifications} onMarkAllRead={() => {}} />,
+};
+
+export const OfficialResale: Story = {
+  render: () => (
+    <ResaleMarketPage
+      header={header("matches")}
+      event={matchSummary}
+      status="success"
+      offers={resaleOffers}
+      onBuy={() => {}}
+      backHref="/events/nile-fc-vs-delta-sc"
+    />
+  ),
+};
+
+export const PaymentPending: Story = {
+  render: () => <OrderConfirmationPage header={header()} order={fawryOrder} ticketsHref="/tickets" />,
+};
+
+export const HelpCentre: Story = {
+  render: () => (
+    <InfoPage
+      header={header()}
+      footer={footer}
+      eyebrow="Help"
+      title="Help centre"
+      intro="Everything about buying, using and passing on your tickets."
+      sections={[
+        { id: "fan-id", title: "Fan ID", paragraphs: ["Football matches need an approved Fan ID for every ticket holder."] },
+        {
+          id: "refunds",
+          title: "Refunds",
+          paragraphs: ["Concerts can be refunded up to 7 days before the event. Matches can be resold at face value."],
+        },
+      ]}
+      contact={{ label: "Contact support", href: "/info/contact" }}
     />
   ),
 };

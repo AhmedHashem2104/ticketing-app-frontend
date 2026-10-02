@@ -63,16 +63,40 @@ describe("transfers", () => {
   it("sends match tickets to an approved Fan ID, which the recipient accepts", async () => {
     const { api, auth, token, bySlug, login } = await signedIn();
     const [derby] = bySlug("nile-fc-vs-delta-sc");
-    await api.post(`/api/tickets/${derby!.id}/transfer`).set(auth(token)).send({ mode: "contact", recipient: "friend@mail.com" }).expect(400);
-    const self = await api.post(`/api/tickets/${derby!.id}/transfer`).set(auth(token)).send({ mode: "fan_id", recipient: "2210 4417 4821" }).expect(400);
+    await api
+      .post(`/api/tickets/${derby!.id}/transfer`)
+      .set(auth(token))
+      .send({ mode: "contact", recipient: "friend@mail.com" })
+      .expect(400);
+    const self = await api
+      .post(`/api/tickets/${derby!.id}/transfer`)
+      .set(auth(token))
+      .send({ mode: "fan_id", recipient: "2210 4417 4821" })
+      .expect(400);
     expect(self.body.error.message).toMatch(/yourself/);
-    const unknown = await api.post(`/api/tickets/${derby!.id}/transfer`).set(auth(token)).send({ mode: "fan_id", recipient: "2210 4417 0000" }).expect(400);
+    const unknown = await api
+      .post(`/api/tickets/${derby!.id}/transfer`)
+      .set(auth(token))
+      .send({ mode: "fan_id", recipient: "2210 4417 0000" })
+      .expect(400);
     expect(unknown.body.error.message).toMatch(/no approved Fan ID/);
     // Youssef already has a derby ticket — one per Fan ID.
     await api.post(`/api/tickets/${derby!.id}/transfer`).set(auth(token)).send({ mode: "fan_id", recipient: "2210 4417 1907" }).expect(422);
+    // …but Youssef's own ticket (bought by Omar) can move to Youssef's account.
+    const youssefsTicket = bySlug("nile-fc-vs-delta-sc").find((t) => t.holderName === "Youssef A.")!;
+    const toOwner = await api
+      .post(`/api/tickets/${youssefsTicket.id}/transfer`)
+      .set(auth(token))
+      .send({ mode: "fan_id", recipient: "2210 4417 1907" })
+      .expect(201);
+    await api.post(`/api/transfers/${toOwner.body.id}/cancel`).set(auth(token)).expect(200);
 
     // Karim (the resale seller) has no derby ticket yet.
-    const sent = await api.post(`/api/tickets/${derby!.id}/transfer`).set(auth(token)).send({ mode: "fan_id", recipient: "2210 4417 5555" }).expect(201);
+    const sent = await api
+      .post(`/api/tickets/${derby!.id}/transfer`)
+      .set(auth(token))
+      .send({ mode: "fan_id", recipient: "2210 4417 5555" })
+      .expect(201);
     const transfer = transferSchema.parse(sent.body);
     expect(transfer).toMatchObject({ status: "pending", direction: "outgoing", recipientLabel: "Fan ID •••• 5555" });
     expect((await api.get(`/api/tickets/${derby!.id}`).set(auth(token))).body.status).toBe("transfer_pending");
@@ -90,7 +114,11 @@ describe("transfers", () => {
 
     const accepted = await api.post(`/api/transfers/${transfer.id}/accept`).set(auth(karim)).expect(200);
     expect(accepted.body.transfer.status).toBe("accepted");
-    expect(ticketSchema.parse(accepted.body.ticket)).toMatchObject({ status: "valid", holderName: "Karim N.", seatLabel: derby!.seatLabel });
+    expect(ticketSchema.parse(accepted.body.ticket)).toMatchObject({
+      status: "valid",
+      holderName: "Karim N.",
+      seatLabel: derby!.seatLabel,
+    });
     expect(accepted.body.ticket.code).not.toBe(derby!.code);
     expect((await api.get(`/api/tickets/${derby!.id}`).set(auth(token))).body.status).toBe("transferred");
     await api.post(`/api/transfers/${transfer.id}/accept`).set(auth(karim)).expect(409);
@@ -100,11 +128,19 @@ describe("transfers", () => {
     const { api, auth, token, bySlug, login } = await signedIn();
     const [first, second] = bySlug("layla-nour-live-in-cairo");
     const youssef = await login(SECOND_USER.phone, SECOND_USER.password);
-    const t1 = await api.post(`/api/tickets/${first!.id}/transfer`).set(auth(token)).send({ mode: "contact", recipient: "youssef.a@mail.com" }).expect(201);
+    const t1 = await api
+      .post(`/api/tickets/${first!.id}/transfer`)
+      .set(auth(token))
+      .send({ mode: "contact", recipient: "youssef.a@mail.com" })
+      .expect(201);
     await api.post(`/api/transfers/${t1.body.id}/decline`).set(auth(youssef)).expect(200);
     expect((await api.get(`/api/tickets/${first!.id}`).set(auth(token))).body.status).toBe("valid");
 
-    const t2 = await api.post(`/api/tickets/${second!.id}/transfer`).set(auth(token)).send({ mode: "contact", recipient: "+20 10 9876 5432" }).expect(201);
+    const t2 = await api
+      .post(`/api/tickets/${second!.id}/transfer`)
+      .set(auth(token))
+      .send({ mode: "contact", recipient: "+20 10 9876 5432" })
+      .expect(201);
     expect(t2.body.recipientLabel).toBe("+20•••432");
     await api.post(`/api/transfers/${t2.body.id}/cancel`).set(auth(youssef)).expect(404);
     await api.post(`/api/transfers/${t2.body.id}/cancel`).set(auth(token)).expect(200);
@@ -116,7 +152,11 @@ describe("transfers", () => {
   it("returns the ticket when a transfer isn't accepted within 24 hours", async () => {
     const { api, auth, token, bySlug, advance } = await signedIn();
     const [layla] = bySlug("layla-nour-live-in-cairo");
-    const sent = await api.post(`/api/tickets/${layla!.id}/transfer`).set(auth(token)).send({ mode: "contact", recipient: "friend@mail.com" }).expect(201);
+    const sent = await api
+      .post(`/api/tickets/${layla!.id}/transfer`)
+      .set(auth(token))
+      .send({ mode: "contact", recipient: "friend@mail.com" })
+      .expect(201);
     advance(24 * 3_600_000 + 1000);
     const list = await api.get("/api/transfers").set(auth(token));
     expect(list.body.outgoing.find((t: { id: string }) => t.id === sent.body.id).status).toBe("expired");
@@ -126,7 +166,11 @@ describe("transfers", () => {
   it("lets someone without an account claim a ticket after signing up with that number", async () => {
     const { api, auth, token, bySlug, signUpNewUser } = await signedIn();
     const [layla] = bySlug("layla-nour-live-in-cairo");
-    const sent = await api.post(`/api/tickets/${layla!.id}/transfer`).set(auth(token)).send({ mode: "contact", recipient: "1112345678" }).expect(201);
+    const sent = await api
+      .post(`/api/tickets/${layla!.id}/transfer`)
+      .set(auth(token))
+      .send({ mode: "contact", recipient: "1112345678" })
+      .expect(201);
     const sara = await signUpNewUser("1112345678");
     const inbox = await api.get("/api/transfers").set(auth(sara));
     expect(inbox.body.incoming.map((t: { id: string }) => t.id)).toEqual([sent.body.id]);

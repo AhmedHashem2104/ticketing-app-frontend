@@ -160,6 +160,14 @@ export const fanIdSubmitRequestSchema = z
   });
 export type FanIdSubmitRequest = z.input<typeof fanIdSubmitRequestSchema>;
 
+/** Whether each of the account's fans can get a ticket for a given match (one ticket per Fan ID). */
+export const fanEligibilitySchema = z.object({
+  fanId: idSchema,
+  eligible: z.boolean(),
+  reason: z.string().optional(),
+});
+export type FanEligibility = z.infer<typeof fanEligibilitySchema>;
+
 export const linkFanRequestSchema = z.object({
   name: z.string().trim().min(3, { error: "Enter their full name" }),
   fanIdNumber: z

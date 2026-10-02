@@ -170,6 +170,8 @@ export const fanSelectorPropsSchema = z
     max: z.number().int().positive(),
     linkFanHref: zHref.optional(),
     error: z.string().optional(),
+    /** Fans who can't get a ticket for this event, keyed by fan id, with the reason. */
+    unavailable: z.record(z.string(), z.string()).optional(),
     className: zClassName,
   })
   .refine((p) => p.value.length <= p.max, { error: "More fans selected than allowed", path: ["value"] });
@@ -179,7 +181,7 @@ export type FanSelectorProps = z.input<typeof fanSelectorPropsSchema>;
 /** Organism · FanSelector — "Who's going?" with one ticket per approved Fan ID. */
 export function FanSelector(props: FanSelectorProps) {
   validateProps("FanSelector", fanSelectorPropsSchema, props);
-  const { fans, value, onValueChange, max, linkFanHref, error, className } = props;
+  const { fans, value, onValueChange, max, linkFanHref, error, unavailable, className } = props;
   const full = value.length >= max;
   return (
     <fieldset
@@ -198,6 +200,7 @@ export function FanSelector(props: FanSelectorProps) {
             fan={fan}
             checked={checked}
             disabled={!checked && full}
+            unavailableReason={unavailable?.[fan.id]}
             onCheckedChange={(on) => onValueChange(on ? [...value, fan.id] : value.filter((id) => id !== fan.id))}
           />
         );

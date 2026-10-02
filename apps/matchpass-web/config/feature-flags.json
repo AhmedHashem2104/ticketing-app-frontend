@@ -41,6 +41,10 @@
       "enabled": true,
       "description": "Parking add-on offer on the match order confirmation page."
     },
+    "notificationCentre": {
+      "enabled": true,
+      "description": "Notification bell in the header and the /notifications page (orders, transfers, refunds, event changes)."
+    },
     "addToWallet": {
       "enabled": false,
       "description": "Apple/Google wallet passes. Disabled until the pass service is live."

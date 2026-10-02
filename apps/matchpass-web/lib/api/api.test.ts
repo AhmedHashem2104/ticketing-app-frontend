@@ -42,22 +42,46 @@ describe("toApiError", () => {
 });
 
 describe("api client", () => {
-  it("attaches the bearer token and drops the session on 401", async () => {
+  it("never sends a bearer token (the BFF cookie carries the session) and reports expired sessions", async () => {
     const onUnauthorized = vi.fn();
-    configureAuth({ get: () => "tok_123", onUnauthorized });
-    const seen: string[] = [];
+    configureAuth({ onUnauthorized });
+    const seen: unknown[] = [];
     const http = client((config) => {
-      seen.push(String(config.headers.Authorization));
+      seen.push(config.headers.Authorization);
       return { status: 401, data: { error: { code: "UNAUTHORIZED", message: "Sign in to continue" } } };
     });
-    await expect(http.get("/me")).rejects.toMatchObject({ code: "UNAUTHORIZED", message: "Sign in to continue" });
-    expect(seen).toEqual(["Bearer tok_123"]);
+    await expect(http.get("/tickets")).rejects.toMatchObject({ code: "UNAUTHORIZED", message: "Sign in to continue" });
+    expect(seen).toEqual([undefined]);
     expect(onUnauthorized).toHaveBeenCalledOnce();
-    configureAuth({ get: () => null, onUnauthorized: () => {} });
+    // Probing the session on page load isn't an "expiry".
+    await expect(http.get("/me")).rejects.toMatchObject({ status: 401 });
+    expect(onUnauthorized).toHaveBeenCalledOnce();
+    configureAuth({ onUnauthorized: () => {} });
   });
 });
 
 describe("endpoints", () => {
+  it("treats a missing session as signed out, not an error", async () => {
+    const api = createEndpoints(client(() => ({ status: 401, data: { error: { code: "UNAUTHORIZED", message: "Sign in" } } })));
+    await expect(api.meOrNull()).resolves.toBeNull();
+  });
+
+  it("uploads Fan ID photos as multipart form data", async () => {
+    let body: unknown;
+    const api = createEndpoints(
+      client((config) => {
+        body = config.data;
+        return { status: 200, data: { scanId: "s", nameEn: "Sara", nameAr: "سارة", idNumberMasked: "x", dateOfBirth: "y" } };
+      }),
+    );
+    const front = new File(["x"], "front.jpg", { type: "image/jpeg" });
+    await api.uploadFanIdDocuments({ documentType: "passport", front });
+    expect(body).toBeInstanceOf(FormData);
+    expect((body as FormData).get("documentType")).toBe("passport");
+    expect((body as FormData).get("front")).toBeInstanceOf(File);
+    expect((body as FormData).has("back")).toBe(false);
+  });
+
   it("validates responses against the shared contract", async () => {
     const api = createEndpoints(client(() => ({ status: 200, data: { subscribed: true } })));
     await expect(api.notify("x")).resolves.toEqual({ subscribed: true });

@@ -1,25 +1,28 @@
 "use client";
 
-import { formatMoney, resaleQuote, type Refund, type User } from "@repo/contracts";
-import { MessagePage, RefundRequestPage, RefundsPage, ResalePage } from "@repo/design-system";
+import { formatMoney, resaleQuote, type EventDetail, type Refund, type User } from "@repo/contracts";
+import { MessagePage, RefundRequestPage, RefundsPage, ResaleMarketPage, ResalePage } from "@repo/design-system";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { AppFooter, AppHeader } from "@/components/app-chrome";
 import { errorMessage } from "@/lib/api/client";
-import { RequireAuth } from "@/lib/auth/session";
+import { RequireAuth, useAuth } from "@/lib/auth/session";
 import { downloadFile } from "@/lib/downloads";
 import {
   useCancelRefund,
+  useCreateHold,
   useCreateListing,
   useCreateRefund,
   useListings,
   useRefundOptions,
+  useEvent,
   useRefunds,
+  useResaleOffers,
   useTickets,
   useWithdrawListing,
 } from "@/lib/queries";
 import { routes } from "@/lib/routes";
-import { PageError, PageLoading } from "./shared";
+import { PageError, PageLoading, QueryPage } from "./shared";
 import { useTicketNav } from "./ticket-views";
 
 /* ---------- Resale ---------- */
@@ -200,6 +203,48 @@ function Refunds() {
         },
         { title: "Cinema", body: "Refund up to 2 hours before the showtime. After that, tickets can't be refunded.", tone: "plum" },
       ]}
+    />
+  );
+}
+
+/* ---------- Official resale marketplace (buying) ---------- */
+
+export function ResaleMarketView({ slug }: { slug: string }) {
+  const event = useEvent(slug);
+  return (
+    <QueryPage query={event} active="resale" loadingLabel="Loading resale tickets">
+      {(data) => <ResaleMarket event={data} />}
+    </QueryPage>
+  );
+}
+
+function ResaleMarket({ event }: { event: EventDetail }) {
+  const router = useRouter();
+  const auth = useAuth();
+  const offers = useResaleOffers(event.slug);
+  const createHold = useCreateHold();
+  const needsFanId = event.requiresFanId && auth.status === "signed_in" && auth.user.fanId.status !== "approved";
+  return (
+    <ResaleMarketPage
+      header={<AppHeader active={event.kind === "match" ? "matches" : "concerts"} />}
+      event={event}
+      status={offers.isPending ? "loading" : offers.isError ? "error" : "success"}
+      onRetry={() => void offers.refetch()}
+      offers={offers.data ?? []}
+      onBuy={(offer) => {
+        if (auth.status !== "signed_in") return router.push(routes.login(routes.eventResale(event.slug)));
+        createHold.mutate(
+          { type: "resale", eventId: event.id, listingId: offer.id },
+          {
+            onSuccess: (hold) => router.push(routes.checkout(hold.id)),
+            onError: () => void offers.refetch(),
+          },
+        );
+      }}
+      buyingId={createHold.isPending ? (createHold.variables as { listingId?: string } | undefined)?.listingId : undefined}
+      serverError={errorMessage(createHold.error)}
+      fanIdHref={needsFanId ? routes.fanId : undefined}
+      backHref={routes.event(event.slug)}
     />
   );
 }

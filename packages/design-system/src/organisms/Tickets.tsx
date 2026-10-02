@@ -1,10 +1,20 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ticketSchema, transferRequestSchema, type Ticket, type TicketVariant, type TransferRequest } from "@repo/contracts";
-import { ChevronLeft, ChevronRight, Lock, RotateCcw } from "lucide-react";
-import { useEffect, useId, useState } from "react";
+import {
+  qrTokenSchema,
+  ticketSchema,
+  transferRequestSchema,
+  transferSchema,
+  type QrToken,
+  type Ticket,
+  type TicketVariant,
+  type TransferRequest,
+} from "@repo/contracts";
+import { ChevronLeft, ChevronRight, Loader2, Lock, RotateCcw } from "lucide-react";
+import { useId } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { AppLink } from "../atoms/AppLink";
+import { Badge } from "../atoms/Badge";
 import { Button, LinkButton } from "../atoms/Button";
 import { Barcode, QRCode } from "../atoms/Codes";
 import { DateBadge } from "../atoms/DataDisplay";
@@ -13,8 +23,9 @@ import { Input } from "../atoms/FormControls";
 import { Eyebrow } from "../atoms/Typography";
 import { HolderRow, Notice } from "../molecules/Content";
 import { Field } from "../molecules/Form";
+import { dateTimeLabel } from "../lib/datetime";
+import { useCountdown } from "../lib/hooks";
 import { validateProps, zClassName, zFn, zHref } from "../lib/props";
-import { useUI } from "../lib/provider";
 import { themeSurface } from "../lib/theme";
 import { cn } from "../lib/utils";
 
@@ -73,7 +84,14 @@ export function StubTicket(props: StubTicketProps) {
   const { ticket, cut = "paper", className } = props;
   const v = variants[ticket.variant];
   const cutColor = cut === "paper" ? "#F3F1EA" : "#FFFFFF";
-  const stamped = ticket.status === "refunded" || ticket.status === "cancelled";
+  const stampLabel: Partial<Record<Ticket["status"], string>> = {
+    refunded: "REFUNDED",
+    cancelled: "CANCELLED",
+    transferred: "TRANSFERRED",
+    resold: "RESOLD",
+  };
+  const stamp = stampLabel[ticket.status];
+  const stamped = !!stamp;
   const summary = `${ticket.title}, ${ticket.dateLabel} ${ticket.time}, ${ticket.venueName}. ${ticket.fields.map((f) => `${f.key} ${f.value}`).join(", ")}. Holder ${ticket.holderName}.${stamped ? ` ${ticket.status}.` : ""}`;
   return (
     <div className={cn("max-w-full overflow-x-auto py-3.5", className)}>
@@ -96,7 +114,7 @@ export function StubTicket(props: StubTicketProps) {
                 <span className="font-ticket text-[32px] leading-none font-black tracking-[-0.01em] uppercase">{ticket.title}</span>
               </div>
               <div className="flex items-end justify-between gap-3" aria-hidden="true">
-                <span className="font-mono text-xs font-semibold">[{ticket.dateLabel}]</span>
+                <span className="font-mono text-xs font-semibold">{ticket.dateLabel}</span>
                 <span className="text-right text-xs leading-snug">
                   {ticket.venueName}
                   <br />
@@ -150,7 +168,7 @@ export function StubTicket(props: StubTicketProps) {
               </div>
             </div>
             <span className="border-t pt-2.5 font-mono text-[11px]" style={{ borderColor: v.line }}>
-              [matchpass.app/t/{ticket.code}]
+              matchpass.app/t/{ticket.code}
             </span>
           </div>
         </div>
@@ -166,10 +184,12 @@ export function StubTicket(props: StubTicketProps) {
             aria-hidden="true"
             className={cn(
               "absolute top-24 left-[150px] -rotate-[10deg] rounded-lg border-4 bg-white px-5 py-2 font-ticket text-[40px] font-black tracking-[0.04em]",
-              ticket.status === "refunded" ? "border-pitch text-pitch" : "border-rose-ink text-rose-ink",
+              ticket.status === "refunded" || ticket.status === "transferred" || ticket.status === "resold"
+                ? "border-pitch text-pitch"
+                : "border-rose-ink text-rose-ink",
             )}
           >
-            {ticket.status === "refunded" ? "REFUNDED" : "CANCELLED"}
+            {stamp}
           </span>
         ) : null}
       </article>
@@ -186,6 +206,7 @@ export const ticketActionsPropsSchema = z.object({
   transferHref: zHref.optional(),
   resaleHref: zHref.optional(),
   refundHref: zHref.optional(),
+  onCancelTransfer: zFn<() => void>().optional(),
   className: zClassName,
 });
 
@@ -194,12 +215,13 @@ export type TicketActionsProps = z.input<typeof ticketActionsPropsSchema>;
 const statusNote: Partial<Record<Ticket["status"], string>> = {
   refund_pending: "Refund requested — tickets stay valid until it's approved",
   listed: "Listed on official resale",
+  transfer_pending: "Transfer pending — waiting for them to accept",
 };
 
 /** Organism · TicketActions — note, actions and refund link beside a stub ticket. */
 export function TicketActions(props: TicketActionsProps) {
   validateProps("TicketActions", ticketActionsPropsSchema, props);
-  const { ticket, showQrHref, onAddToWallet, transferHref, resaleHref, refundHref, className } = props;
+  const { ticket, showQrHref, onAddToWallet, transferHref, resaleHref, refundHref, onCancelTransfer, className } = props;
   const note = `Ticket ${ticket.position.index} of ${ticket.position.of} · ${ticket.eventKind === "match" ? ticket.holderDetail.split(" · ")[0] : ticket.refundable ? ticket.refundNote.charAt(0).toLowerCase() + ticket.refundNote.slice(1) : ticket.holderDetail}`;
   return (
     <div className={cn("flex flex-[1_1_260px] flex-col gap-2", className)}>
@@ -223,6 +245,11 @@ export function TicketActions(props: TicketActionsProps) {
           <LinkButton href={resaleHref} variant="outline" size="md" className="font-normal">
             Resell
           </LinkButton>
+        ) : null}
+        {onCancelTransfer && ticket.status === "transfer_pending" ? (
+          <Button variant="outline" onClick={onCancelTransfer} className="font-normal">
+            Cancel transfer
+          </Button>
         ) : null}
       </div>
       {refundHref ? (
@@ -335,6 +362,9 @@ export const ticketDetailPanelPropsSchema = z.object({
   onNext: zFn<() => void>(),
   onAddToWallet: zFn<() => void>().optional(),
   resaleHref: zHref.optional(),
+  /** Current server-signed entry token; the panel asks for a new one when it expires. */
+  qr: z.object({ token: qrTokenSchema.optional(), error: z.string().optional(), onExpire: zFn<() => void>() }).optional(),
+  onCancelTransfer: zFn<() => void>().optional(),
   transfer: z
     .object({
       open: z.boolean(),
@@ -350,22 +380,13 @@ export const ticketDetailPanelPropsSchema = z.object({
 
 export type TicketDetailPanelProps = z.input<typeof ticketDetailPanelPropsSchema>;
 
-const QR_PERIOD = 30;
-
-function RotatingQR({ code }: { code: string }) {
-  const { now } = useUI();
-  const [tick, setTick] = useState(() => now());
-  useEffect(() => {
-    const id = setInterval(() => setTick(now()), 1000);
-    return () => clearInterval(id);
-  }, [now]);
-  const seconds = Math.floor(tick / 1000);
-  const window = Math.floor(seconds / QR_PERIOD);
-  const left = QR_PERIOD - (seconds % QR_PERIOD);
+function RotatingQR({ qr, onExpire }: { qr: QrToken; onExpire: () => void }) {
+  const left = useCountdown(qr.expiresAt, onExpire);
+  const period = Math.max(qr.refreshInSeconds, left, 1);
   return (
     <div className="flex flex-col items-center gap-2.5">
-      <QRCode value={`https://matchpass.app/t/${code}?w=${window}`} size={231} />
-      <ProgressBar value={(left / QR_PERIOD) * 100} label="Time until the QR code refreshes" size="xs" className="w-[231px]" />
+      <QRCode value={qr.token} size={231} label="Entry QR code" />
+      <ProgressBar value={(left / period) * 100} label="Time until the QR code refreshes" size="xs" className="w-[231px]" />
       <span className="text-xs text-muted-ink">Refreshes in 0:{String(left).padStart(2, "0")} · screenshots won&apos;t scan</span>
     </div>
   );
@@ -374,7 +395,7 @@ function RotatingQR({ code }: { code: string }) {
 /** Organism · TicketDetailPanel — live QR, seat fields, entry info and transfer. */
 export function TicketDetailPanel(props: TicketDetailPanelProps) {
   validateProps("TicketDetailPanel", ticketDetailPanelPropsSchema, props);
-  const { ticket, position, onPrevious, onNext, onAddToWallet, resaleHref, transfer, className } = props;
+  const { ticket, position, onPrevious, onNext, onAddToWallet, resaleHref, qr, onCancelTransfer, transfer, className } = props;
   const transferId = useId();
   const canAct = ticket.status === "valid";
   return (
@@ -408,14 +429,19 @@ export function TicketDetailPanel(props: TicketDetailPanelProps) {
         ))}
       </dl>
       <div className="flex flex-wrap items-center gap-8 p-[26px]">
-        {ticket.qrReady && canAct ? (
-          <RotatingQR code={ticket.code} />
+        {ticket.qrReady && canAct && qr?.token ? (
+          <RotatingQR key={qr.token.token} qr={qr.token} onExpire={qr.onExpire} />
+        ) : ticket.qrReady && canAct && qr && !qr.error ? (
+          <div role="status" className="flex size-[231px] flex-col items-center justify-center gap-2.5 rounded-xl bg-paper text-center">
+            <Loader2 className="size-9 animate-spin text-muted-ink motion-reduce:animate-none" aria-hidden="true" />
+            <span className="text-sm text-sub">Loading your entry QR…</span>
+          </div>
         ) : (
           <div className="flex size-[231px] flex-col items-center justify-center gap-2.5 rounded-xl border-2 border-dashed border-line-strong p-5 text-center">
             <Lock className="size-9 text-muted-ink" aria-hidden="true" />
-            <span className="font-semibold">{canAct ? "QR not available yet" : "QR unavailable"}</span>
+            <span className="font-semibold">{canAct && !qr?.error ? "QR not available yet" : "QR unavailable"}</span>
             <span className="text-[13px] text-muted-ink">
-              {canAct ? ticket.qrUnlockLabel : `This ticket is ${ticket.status.replace("_", " ")}.`}
+              {qr?.error ?? (canAct ? ticket.qrUnlockLabel : `This ticket is ${ticket.status.replace("_", " ")}.`)}
             </span>
           </div>
         )}
@@ -445,6 +471,20 @@ export function TicketDetailPanel(props: TicketDetailPanelProps) {
               </LinkButton>
             ) : null}
           </div>
+          {ticket.status === "transfer_pending" ? (
+            <Notice
+              tone="warning"
+              action={
+                onCancelTransfer ? (
+                  <Button variant="outline" onClick={onCancelTransfer}>
+                    Cancel transfer
+                  </Button>
+                ) : undefined
+              }
+            >
+              Waiting for the recipient to accept. The ticket comes back to you if they decline or don’t answer within 24 hours.
+            </Notice>
+          ) : null}
           {transfer?.successMessage ? <Notice tone="success">{transfer.successMessage}</Notice> : null}
           <div id={transferId}>
             {transfer?.open && canAct ? (
@@ -459,6 +499,100 @@ export function TicketDetailPanel(props: TicketDetailPanelProps) {
           </div>
         </div>
       </div>
+    </section>
+  );
+}
+
+/* ---------- TransfersCard ---------- */
+
+export const transfersCardPropsSchema = z.object({
+  transfers: z.array(transferSchema),
+  onAccept: zFn<(id: string) => Promise<void> | void>().optional(),
+  onDecline: zFn<(id: string) => Promise<void> | void>().optional(),
+  onCancel: zFn<(id: string) => Promise<void> | void>().optional(),
+  busyId: z.string().optional(),
+  title: z.string().min(1).optional(),
+  emptyLabel: z.string().min(1).optional(),
+  className: zClassName,
+});
+
+export type TransfersCardProps = z.input<typeof transfersCardPropsSchema>;
+
+const transferStatusTone = {
+  pending: "warning",
+  accepted: "success",
+  declined: "neutral",
+  cancelled: "neutral",
+  expired: "neutral",
+} as const;
+
+/** Organism · TransfersCard — tickets sent to you (accept / decline) or by you (cancel while pending). */
+export function TransfersCard(props: TransfersCardProps) {
+  validateProps("TransfersCard", transfersCardPropsSchema, props);
+  const { transfers, onAccept, onDecline, onCancel, busyId, title = "Transfers", emptyLabel = "No transfers yet.", className } = props;
+  const headingId = useId();
+  return (
+    <section
+      aria-labelledby={headingId}
+      className={cn("flex flex-col gap-3 rounded-2xl border border-line bg-white p-5 sm:p-6", className)}
+    >
+      <h2 id={headingId} className="text-lg font-semibold">
+        {title}
+      </h2>
+      {transfers.length === 0 ? <p className="text-sm text-sub">{emptyLabel}</p> : null}
+      <ul className="m-0 flex list-none flex-col p-0">
+        {transfers.map((t) => {
+          const pending = t.status === "pending";
+          const incoming = t.direction === "incoming";
+          return (
+            <li key={t.id} className="flex flex-wrap items-center justify-between gap-3 border-b border-line py-3.5 last:border-b-0">
+              <div className="flex min-w-[min(100%,240px)] flex-1 flex-col gap-0.5">
+                <span className="text-[15px] font-semibold">{t.eventTitle}</span>
+                <span className="text-sm text-sub">
+                  {t.seatLabel} · {dateTimeLabel(t.startsAt)}
+                </span>
+                <span className="text-[13px] text-muted-ink">
+                  {incoming ? `From ${t.fromName}` : `To ${t.recipientLabel}`}
+                  {pending ? ` · ${incoming ? "accept" : "waiting"} until ${dateTimeLabel(t.expiresAt)}` : ""}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge tone={transferStatusTone[t.status]}>{t.status.charAt(0).toUpperCase() + t.status.slice(1)}</Badge>
+                {pending && incoming && onDecline ? (
+                  <Button
+                    variant="outline"
+                    onClick={() => onDecline(t.id)}
+                    disabled={busyId === t.id}
+                    aria-label={`Decline ticket for ${t.eventTitle}`}
+                  >
+                    Decline
+                  </Button>
+                ) : null}
+                {pending && incoming && onAccept ? (
+                  <Button
+                    variant="pitch"
+                    onClick={() => onAccept(t.id)}
+                    loading={busyId === t.id}
+                    aria-label={`Accept ticket for ${t.eventTitle}`}
+                  >
+                    Accept
+                  </Button>
+                ) : null}
+                {pending && !incoming && onCancel ? (
+                  <Button
+                    variant="outline"
+                    onClick={() => onCancel(t.id)}
+                    loading={busyId === t.id}
+                    aria-label={`Cancel transfer for ${t.eventTitle}`}
+                  >
+                    Cancel
+                  </Button>
+                ) : null}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
     </section>
   );
 }

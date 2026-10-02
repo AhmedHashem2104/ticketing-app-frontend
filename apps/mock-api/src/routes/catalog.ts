@@ -7,6 +7,7 @@ import {
   type EventSummary,
   type EventsResponse,
   type HomeResponse,
+  type FanEligibility,
   type ResaleOffer,
 } from "@repo/contracts";
 import { Router } from "express";
@@ -170,6 +171,22 @@ export function catalogRouter(store: Store) {
     const { code } = parseBody(presaleCodeRequestSchema, req);
     if (!PRESALE_CODES[event.slug]?.includes(code)) throw new HttpError("INVALID_CODE", "That presale code isn't valid for this event");
     res.json({ valid: true, code, message: "Presale unlocked — you can buy before general sale." });
+  });
+
+  /** Which of the signed-in fan's linked Fan IDs can still get a ticket for this event. */
+  router.get("/events/:slug/fan-eligibility", auth, (req, res) => {
+    const event = store.eventBySlug(param(req, "slug"));
+    if (!event) throw notFound("Event");
+    const user = store.refreshUser(currentUser(res));
+    const taken = event.kind === "match" ? store.fanNumbersWithTickets(event.id) : new Set<string>();
+    const body: FanEligibility[] = user.fans.map((fan) =>
+      fan.status !== "approved"
+        ? { fanId: fan.id, eligible: false, reason: "Fan ID under review" }
+        : fan.number && taken.has(fan.number)
+          ? { fanId: fan.id, eligible: false, reason: "Already has a ticket for this match" }
+          : { fanId: fan.id, eligible: true },
+    );
+    res.json(body);
   });
 
   /** Official resale marketplace: tickets other fans are selling at or below face value. */

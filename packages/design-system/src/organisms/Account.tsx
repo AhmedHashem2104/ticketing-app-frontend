@@ -1,26 +1,40 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   documentTypeSchema,
+  FAN_ID_IMAGE_TYPES,
+  fanIdDocumentsSchema,
   fanIdExtractedSchema,
-  fanIdScanRequestSchema,
   fanIdSubmitRequestSchema,
+  fanSchema,
+  forgotPasswordRequestSchema,
+  formatMoney,
+  imageUploadSchema,
+  initialsOf,
+  linkFanRequestSchema,
   loginRequestSchema,
   otpCodeSchema,
+  passwordSchema,
+  preferencesRequestSchema,
   signUpRequestSchema,
+  userSchema,
   type DocumentType,
+  type ForgotPasswordRequest,
+  type LinkFanRequest,
   type LoginRequest,
+  type PreferencesRequest,
   type SignUpRequest,
 } from "@repo/contracts";
-import { Camera, Check } from "lucide-react";
-import { useEffect, useId, useState, type ChangeEvent } from "react";
+import { Camera, Check, Loader2, LogOut } from "lucide-react";
+import { useEffect, useId, useMemo, useState, type ChangeEvent } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { AppLink } from "../atoms/AppLink";
 import { Button, LinkButton } from "../atoms/Button";
 import { Input, RadioGroup } from "../atoms/FormControls";
-import { Logo } from "../atoms/Identity";
+import { Avatar, Logo } from "../atoms/Identity";
+import { Switch } from "../components/ui/switch";
 import { Eyebrow, Heading } from "../atoms/Typography";
-import { Notice } from "../molecules/Content";
+import { HolderRow, Notice } from "../molecules/Content";
 import { CheckboxField, Field, OptionCard, OtpInput } from "../molecules/Form";
 import { StepProgress } from "../molecules/Navigation";
 import { useCountdown } from "../lib/hooks";
@@ -246,6 +260,7 @@ export const loginFormPropsSchema = z.object({
   submitting: z.boolean().optional(),
   serverError: z.string().optional(),
   signUpHref: zHref,
+  forgotHref: zHref.optional(),
   className: zClassName,
 });
 
@@ -254,7 +269,7 @@ export type LoginFormProps = z.input<typeof loginFormPropsSchema>;
 /** Organism · LoginForm */
 export function LoginForm(props: LoginFormProps) {
   validateProps("LoginForm", loginFormPropsSchema, props);
-  const { onSubmit, submitting, serverError, signUpHref, className } = props;
+  const { onSubmit, submitting, serverError, signUpHref, forgotHref, className } = props;
   const form = useForm<LoginRequest, unknown, z.output<typeof loginRequestSchema>>({
     resolver: zodResolver(loginRequestSchema),
     defaultValues: { phone: "", password: "" },
@@ -297,6 +312,11 @@ export function LoginForm(props: LoginFormProps) {
       <Field label="Password" error={e.password?.message} required>
         <Input type="password" autoComplete="current-password" className="h-12" {...form.register("password")} />
       </Field>
+      {forgotHref ? (
+        <AppLink href={forgotHref} tone="pitch" underline className="-mt-2 flex min-h-11 items-center self-end text-sm">
+          Forgot password?
+        </AppLink>
+      ) : null}
       {serverError ? <Notice tone="danger">{serverError}</Notice> : null}
       <Button type="submit" variant="pitch" size="xl" block loading={submitting} loadingText="Logging in…">
         Log in
@@ -311,6 +331,8 @@ export const fanIdCardPropsSchema = z.object({
   name: z.string().min(1),
   number: z.string().min(1),
   validUntil: z.string().min(1),
+  /** Verified photo, when the app can show it. Initials are shown otherwise. */
+  photoUrl: z.string().min(1).optional(),
   className: zClassName,
 });
 
@@ -319,7 +341,7 @@ export type FanIdCardProps = z.input<typeof fanIdCardPropsSchema>;
 /** Organism · FanIdCard — the digital Fan ID. */
 export function FanIdCard(props: FanIdCardProps) {
   validateProps("FanIdCard", fanIdCardPropsSchema, props);
-  const { name, number, validUntil, className } = props;
+  const { name, number, validUntil, photoUrl, className } = props;
   return (
     <section
       aria-label="Your Fan ID"
@@ -330,13 +352,16 @@ export function FanIdCard(props: FanIdCardProps) {
         <Logo wordmark="none" tone="gold" />
       </div>
       <div className="flex items-center gap-[18px]">
-        <div
-          role="img"
-          aria-label="Fan photo placeholder"
-          className="flex h-[108px] w-[88px] shrink-0 items-center justify-center rounded-[10px] bg-mint text-[13px] font-semibold text-pitch"
-        >
-          [PHOTO]
-        </div>
+        {photoUrl ? (
+          <img src={photoUrl} alt={name} className="h-[108px] w-[88px] shrink-0 rounded-[10px] object-cover" />
+        ) : (
+          <div
+            aria-hidden="true"
+            className="flex h-[108px] w-[88px] shrink-0 items-center justify-center rounded-[10px] bg-mint font-display text-[34px] font-extrabold text-pitch"
+          >
+            {initialsOf(name)}
+          </div>
+        )}
         <dl className="m-0 flex flex-col gap-1.5">
           <dt className="sr-only">Name</dt>
           <dd className="m-0 font-display text-[30px] leading-none font-extrabold uppercase">{name}</dd>
@@ -355,13 +380,20 @@ export function FanIdCard(props: FanIdCardProps) {
 const FAN_STEPS = ["Document", "ID photos", "Selfie", "Review", "Done"];
 const FAN_TITLES = ["Get your Fan ID", "Scan your document", "Confirm it’s you", "Almost done", "Your Fan ID is ready"];
 
+const zFile = z.custom<File>((value) => typeof File !== "undefined" && value instanceof File, { error: "Expected a File" });
+
+export type FanIdDocumentsValues = { documentType: DocumentType; front: File; back?: File };
+export type FanIdSubmitValues = { scanId: string; selfie: File; confirmDetails: true };
+
 export const fanIdWizardPropsSchema = z.object({
   step: z.number().int().min(1).max(5),
   onStepChange: zFn<(step: number) => void>(),
-  onScan: zFn<(values: z.infer<typeof fanIdScanRequestSchema>) => Promise<void> | void>(),
+  onScan: zFn<(values: FanIdDocumentsValues) => Promise<void> | void>(),
   extracted: fanIdExtractedSchema.optional(),
-  onSubmit: zFn<(values: z.infer<typeof fanIdSubmitRequestSchema>) => Promise<void> | void>(),
+  onSubmit: zFn<(values: FanIdSubmitValues) => Promise<void> | void>(),
   approved: z.object({ name: z.string().min(1), number: z.string().min(1), validUntil: z.string().min(1) }).optional(),
+  /** Submitted and waiting for the identity check. */
+  underReview: z.boolean().optional(),
   pending: z.boolean().optional(),
   serverError: z.string().optional(),
   browseHref: zHref,
@@ -372,87 +404,151 @@ export const fanIdWizardPropsSchema = z.object({
 
 export type FanIdWizardProps = z.input<typeof fanIdWizardPropsSchema>;
 
-function CaptureTile({
-  label,
-  captured,
-  onCapture,
-  capture,
-}: {
-  label: string;
-  captured: boolean;
-  onCapture: (captured: boolean) => void;
-  capture: "user" | "environment";
-}) {
+/** Object URL preview for a picked photo, revoked when the file changes. */
+function usePreview(file?: File) {
+  const url = useMemo(() => (file && typeof URL.createObjectURL === "function" ? URL.createObjectURL(file) : undefined), [file]);
+  useEffect(() => () => (url ? URL.revokeObjectURL(url) : undefined), [url]);
+  return url;
+}
+
+const captureTilePropsSchema = z.object({
+  label: z.string().min(1),
+  file: zFile.optional(),
+  onFile: zFn<(file: File | undefined) => void>(),
+  capture: z.enum(["user", "environment"]),
+  error: z.string().optional(),
+});
+
+/** Molecule-level helper · CaptureTile — take or upload one photo, with preview and validation message. */
+function CaptureTile(props: z.input<typeof captureTilePropsSchema>) {
+  validateProps("CaptureTile", captureTilePropsSchema, props);
+  const { label, file, onFile, capture, error } = props;
   const id = useId();
-  const onChange = (event: ChangeEvent<HTMLInputElement>) => onCapture(!!event.target.files?.length);
+  const preview = usePreview(file);
+  const onChange = (event: ChangeEvent<HTMLInputElement>) => onFile(event.target.files?.[0]);
+  const describedBy = [`${id}-status`, error ? `${id}-error` : ""].filter(Boolean).join(" ");
   return (
     <div
       className={cn(
-        "flex h-[200px] flex-col items-center justify-center gap-2.5 rounded-xl text-center",
-        captured ? "border-2 border-pitch bg-mint text-pitch" : "border-2 border-dashed border-stone bg-paper",
+        "flex min-h-[200px] flex-col items-center justify-center gap-2.5 rounded-xl p-3 text-center",
+        error
+          ? "border-2 border-rose-ink bg-rose-soft"
+          : file
+            ? "border-2 border-pitch bg-mint text-pitch"
+            : "border-2 border-dashed border-stone bg-paper",
       )}
     >
-      {captured ? (
+      {preview ? (
+        <img src={preview} alt={`${label} preview`} className="h-24 max-w-full rounded-lg object-cover" />
+      ) : file ? (
         <Check className="size-9" strokeWidth={2.5} aria-hidden="true" />
       ) : (
         <Camera className="size-9 text-sub" aria-hidden="true" />
       )}
       <span className="font-semibold" id={`${id}-status`}>
-        {captured ? `${label} added` : label}
+        {file && !error ? `${label} added` : label}
       </span>
+      {error ? (
+        <span id={`${id}-error`} className="text-[13px] text-rose-ink">
+          {error}
+        </span>
+      ) : null}
       <input
         id={id}
         type="file"
-        accept="image/*"
+        accept={FAN_ID_IMAGE_TYPES.join(",")}
         capture={capture}
         className="peer sr-only"
         onChange={onChange}
-        aria-describedby={`${id}-status`}
+        aria-describedby={describedBy}
+        aria-invalid={error ? true : undefined}
       />
       <label
         htmlFor={id}
         className={cn(
           "flex h-11 cursor-pointer items-center rounded-lg px-4 text-sm peer-focus-visible:ring-[3px] peer-focus-visible:ring-gold",
-          captured ? "font-semibold text-pitch underline" : "border border-ink bg-white",
+          file ? "font-semibold text-pitch underline" : "border border-ink bg-white",
         )}
       >
-        {captured ? `Retake ${label.toLowerCase()}` : capture === "user" ? "Take selfie" : `Take photo or upload · ${label.toLowerCase()}`}
+        {file ? `Retake ${label.toLowerCase()}` : capture === "user" ? "Take selfie" : `Take photo or upload · ${label.toLowerCase()}`}
       </label>
     </div>
   );
 }
 
-/** Organism · FanIdWizard — document, photos, selfie, review and approval. */
+type Photos = { front?: File; back?: File; selfie?: File };
+
+/** Organism · FanIdWizard — document, photo uploads, selfie, review, then the identity check and approval. */
 export function FanIdWizard(props: FanIdWizardProps) {
   validateProps("FanIdWizard", fanIdWizardPropsSchema, props);
-  const { step, onStepChange, onScan, extracted, onSubmit, approved, pending, serverError, browseHref, skipHref, linkFansHref, className } =
-    props;
+  const {
+    step,
+    onStepChange,
+    onScan,
+    extracted,
+    onSubmit,
+    approved,
+    underReview,
+    pending,
+    serverError,
+    browseHref,
+    skipHref,
+    linkFansHref,
+    className,
+  } = props;
   const [documentType, setDocumentType] = useState<DocumentType>("national_id");
-  const [captured, setCaptured] = useState({ front: false, back: false, selfie: false });
+  const [photos, setPhotos] = useState<Photos>({});
+  const [photoErrors, setPhotoErrors] = useState<Partial<Record<keyof Photos, string>>>({});
   const [confirmed, setConfirmed] = useState(false);
   const [message, setMessage] = useState<string>();
   const docName = documentType === "national_id" ? "national ID" : "passport";
+
+  /** Validates a picked photo immediately (type and size) so fans don't find out after uploading. */
+  const pick = (key: keyof Photos) => (file: File | undefined) => {
+    setPhotos((p) => ({ ...p, [key]: file }));
+    const check = file ? imageUploadSchema.safeParse({ type: file.type, size: file.size }) : undefined;
+    setPhotoErrors((e) => ({ ...e, [key]: check && !check.success ? check.error.issues[0]?.message : undefined }));
+  };
 
   const next = async () => {
     setMessage(undefined);
     if (step === 1) return onStepChange(2);
     if (step === 2) {
-      const scan = fanIdScanRequestSchema.safeParse({ documentType, frontCaptured: captured.front, backCaptured: captured.back });
-      if (!scan.success) return setMessage(scan.error.issues[0]?.message);
-      return onScan(scan.data);
+      const meta = (f?: File) => (f ? { type: f.type, size: f.size } : undefined);
+      const parsed = fanIdDocumentsSchema.safeParse({
+        documentType,
+        front: meta(photos.front),
+        back: documentType === "national_id" ? meta(photos.back) : undefined,
+      });
+      if (!parsed.success) {
+        const errs: Partial<Record<keyof Photos, string>> = {};
+        for (const issue of parsed.error.issues) {
+          const key = issue.path[0] as keyof Photos;
+          errs[key] ??= issue.message;
+        }
+        setPhotoErrors(errs);
+        return setMessage(parsed.error.issues[0]?.message);
+      }
+      return onScan({
+        documentType,
+        front: photos.front!,
+        ...(documentType === "national_id" && photos.back ? { back: photos.back } : {}),
+      });
     }
     if (step === 3) {
-      if (!captured.selfie) return setMessage("Take a selfie to continue");
+      const check = photos.selfie ? imageUploadSchema.safeParse({ type: photos.selfie.type, size: photos.selfie.size }) : undefined;
+      if (!check) return setMessage("Take a selfie to continue");
+      if (!check.success) return setMessage(check.error.issues[0]?.message);
       return onStepChange(4);
     }
     if (step === 4) {
       const submit = fanIdSubmitRequestSchema.safeParse({
         scanId: extracted?.scanId,
-        selfieCaptured: captured.selfie,
+        selfie: photos.selfie ? { type: photos.selfie.type, size: photos.selfie.size } : undefined,
         confirmDetails: confirmed,
       });
       if (!submit.success) return setMessage(submit.error.issues[0]?.message);
-      return onSubmit(submit.data);
+      return onSubmit({ scanId: submit.data.scanId, selfie: photos.selfie!, confirmDetails: true });
     }
   };
 
@@ -463,7 +559,7 @@ export function FanIdWizard(props: FanIdWizardProps) {
       <div className="flex flex-col gap-2">
         <Eyebrow tone="pitch">Fan ID · Needed for football matches</Eyebrow>
         <Heading as="h1" size="3xl">
-          {FAN_TITLES[step - 1]}
+          {step === 5 && underReview && !approved ? "We’re checking your details" : FAN_TITLES[step - 1]}
         </Heading>
       </div>
       <StepProgress steps={FAN_STEPS} current={step} />
@@ -493,7 +589,7 @@ export function FanIdWizard(props: FanIdWizardProps) {
               />
             </RadioGroup>
             <p className="text-sm leading-normal text-muted-ink">
-              Your ID images are encrypted and used only to verify you. Takes about 2 minutes.
+              Your ID images are encrypted, used only to verify you and deleted after the check. Takes about 2 minutes.
             </p>
           </fieldset>
         ) : null}
@@ -501,48 +597,26 @@ export function FanIdWizard(props: FanIdWizardProps) {
           <div className="flex flex-col gap-4">
             <h2 className="text-lg font-semibold">Photograph your {docName}</h2>
             <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-3.5">
-              <CaptureTile
-                label="Front side"
-                capture="environment"
-                captured={captured.front}
-                onCapture={(c) => setCaptured((s) => ({ ...s, front: c }))}
-              />
+              <CaptureTile label="Front side" capture="environment" file={photos.front} onFile={pick("front")} error={photoErrors.front} />
               {documentType === "national_id" ? (
-                <CaptureTile
-                  label="Back side"
-                  capture="environment"
-                  captured={captured.back}
-                  onCapture={(c) => setCaptured((s) => ({ ...s, back: c }))}
-                />
+                <CaptureTile label="Back side" capture="environment" file={photos.back} onFile={pick("back")} error={photoErrors.back} />
               ) : null}
             </div>
             <ul className="m-0 pl-5 text-sm leading-relaxed text-sub">
               <li>Place the card on a dark, flat surface</li>
               <li>All four corners visible, no glare or blur</li>
+              <li>JPG, PNG, WEBP or HEIC, up to 8 MB</li>
             </ul>
           </div>
         ) : null}
         {step === 3 ? (
           <div className="flex flex-col items-center gap-4 text-center">
             <h2 className="text-lg font-semibold">Take a selfie</h2>
-            <div aria-hidden="true" className="flex h-[300px] w-[260px] items-center justify-center rounded-2xl bg-ink">
-              <div
-                className={cn(
-                  "h-[230px] w-[170px] rounded-full border-[3px] border-dashed",
-                  captured.selfie ? "border-mint" : "border-gold",
-                )}
-              />
-            </div>
             <p className="max-w-[420px] text-[15px] leading-normal text-sub">
-              Keep your face inside the oval and turn your head slowly when asked. Remove sunglasses and hats.
+              Face the camera in good light. Remove sunglasses and hats. We compare it with your document photo.
             </p>
             <div className="w-full max-w-[320px]">
-              <CaptureTile
-                label="Selfie"
-                capture="user"
-                captured={captured.selfie}
-                onCapture={(c) => setCaptured((s) => ({ ...s, selfie: c }))}
-              />
+              <CaptureTile label="Selfie" capture="user" file={photos.selfie} onFile={pick("selfie")} error={photoErrors.selfie} />
             </div>
           </div>
         ) : null}
@@ -594,6 +668,18 @@ export function FanIdWizard(props: FanIdWizardProps) {
             </div>
           </div>
         ) : null}
+        {step === 5 && !approved && underReview ? (
+          <div role="status" className="flex flex-col items-center gap-4 py-4 text-center">
+            <Loader2 className="size-10 animate-spin text-pitch motion-reduce:animate-none" aria-hidden="true" />
+            <p className="max-w-[440px] text-[15px] leading-normal text-sub">
+              Your photos are with our verification partner. It usually takes a few minutes — we’ll text you, and this page updates by
+              itself.
+            </p>
+            <LinkButton href={skipHref} variant="outline" size="lg" className="font-normal">
+              Browse concerts meanwhile
+            </LinkButton>
+          </div>
+        ) : null}
         {serverError ? <Notice tone="danger">{serverError}</Notice> : null}
         {step < 5 ? (
           <div className="flex items-center justify-between gap-3 border-t border-line pt-[18px]">
@@ -603,7 +689,7 @@ export function FanIdWizard(props: FanIdWizardProps) {
             <span role="alert" className="flex-1 text-right text-[13px] text-rose-ink">
               {message}
             </span>
-            <Button variant="pitch" size="lg" onClick={next} loading={pending}>
+            <Button variant="pitch" size="lg" onClick={next} loading={pending} loadingText={step === 2 ? "Uploading…" : undefined}>
               {nextLabel}
             </Button>
           </div>
@@ -615,5 +701,348 @@ export function FanIdWizard(props: FanIdWizardProps) {
         </AppLink>
       ) : null}
     </div>
+  );
+}
+
+/* ---------- ForgotPasswordForm ---------- */
+
+const resetFormSchema = z
+  .object({ code: otpCodeSchema, password: passwordSchema, confirmPassword: z.string() })
+  .refine((v) => v.password === v.confirmPassword, { error: "Passwords don't match", path: ["confirmPassword"] });
+export type ResetPasswordValues = z.output<typeof resetFormSchema>;
+
+export const forgotPasswordFormPropsSchema = z.object({
+  /** `request`: ask for the mobile number · `reset`: enter the SMS code and a new password. */
+  stage: z.enum(["request", "reset"]),
+  maskedPhone: z.string().optional(),
+  onRequest: zFn<(values: z.output<typeof forgotPasswordRequestSchema>) => Promise<void> | void>(),
+  onReset: zFn<(values: ResetPasswordValues) => Promise<void> | void>(),
+  onStartOver: zFn<() => void>(),
+  submitting: z.boolean().optional(),
+  serverError: z.string().optional(),
+  loginHref: zHref,
+  className: zClassName,
+});
+
+export type ForgotPasswordFormProps = z.input<typeof forgotPasswordFormPropsSchema>;
+
+/** Organism · ForgotPasswordForm — reset a password with an SMS code. */
+export function ForgotPasswordForm(props: ForgotPasswordFormProps) {
+  validateProps("ForgotPasswordForm", forgotPasswordFormPropsSchema, props);
+  const { stage, maskedPhone, onRequest, onReset, onStartOver, submitting, serverError, loginHref, className } = props;
+  const request = useForm<ForgotPasswordRequest, unknown, z.output<typeof forgotPasswordRequestSchema>>({
+    resolver: zodResolver(forgotPasswordRequestSchema),
+    defaultValues: { phone: "" },
+  });
+  const reset = useForm<z.input<typeof resetFormSchema>, unknown, ResetPasswordValues>({
+    resolver: zodResolver(resetFormSchema),
+    defaultValues: { code: "", password: "", confirmPassword: "" },
+    mode: "onTouched",
+  });
+  const header = (
+    <div className="flex flex-col gap-1.5">
+      <Heading as="h1" id="forgot-title" size="2xl">
+        {stage === "request" ? "Reset your password" : "Choose a new password"}
+      </Heading>
+      <span className="text-[15px] text-sub">
+        {stage === "request" ? (
+          "We’ll text a code to the mobile number on your account."
+        ) : (
+          <>
+            Enter the code we sent to <span className="font-mono text-ink">{maskedPhone}</span>
+          </>
+        )}
+      </span>
+    </div>
+  );
+  if (stage === "request") {
+    const e = request.formState.errors;
+    return (
+      <form
+        noValidate
+        aria-labelledby="forgot-title"
+        onSubmit={request.handleSubmit((v) => onRequest(v))}
+        className={cn("flex flex-col gap-[18px]", className)}
+      >
+        {header}
+        <Field label="Mobile number" error={e.phone?.message} required>
+          <div className="flex gap-2">
+            <span className="flex h-12 items-center rounded-lg border border-line bg-sand px-3.5 font-mono" aria-hidden="true">
+              +20
+            </span>
+            <Input
+              type="tel"
+              mono
+              autoComplete="tel-national"
+              inputMode="tel"
+              placeholder="10 0000 0000"
+              className="h-12 flex-1"
+              {...request.register("phone")}
+            />
+          </div>
+        </Field>
+        {serverError ? <Notice tone="danger">{serverError}</Notice> : null}
+        <Button type="submit" variant="pitch" size="xl" block loading={submitting} loadingText="Sending code…">
+          Send reset code
+        </Button>
+        <AppLink href={loginHref} tone="pitch" underline className="flex min-h-11 items-center self-center text-sm">
+          Back to log in
+        </AppLink>
+      </form>
+    );
+  }
+  const e = reset.formState.errors;
+  return (
+    <form
+      noValidate
+      aria-labelledby="forgot-title"
+      onSubmit={reset.handleSubmit((v) => onReset(v))}
+      className={cn("flex flex-col gap-[18px]", className)}
+    >
+      {header}
+      <Controller
+        control={reset.control}
+        name="code"
+        render={({ field }) => (
+          <Field label="SMS code" error={e.code?.message} required>
+            <OtpInput value={field.value} onValueChange={field.onChange} invalid={!!e.code} />
+          </Field>
+        )}
+      />
+      <Field label="New password" hint="At least 8 characters" error={e.password?.message} required>
+        <Input type="password" autoComplete="new-password" className="h-12" {...reset.register("password")} />
+      </Field>
+      <Field label="Confirm new password" error={e.confirmPassword?.message} required>
+        <Input type="password" autoComplete="new-password" className="h-12" {...reset.register("confirmPassword")} />
+      </Field>
+      {serverError ? <Notice tone="danger">{serverError}</Notice> : null}
+      <Button type="submit" variant="pitch" size="xl" block loading={submitting} loadingText="Saving…">
+        Save new password
+      </Button>
+      <Button variant="link" size="sm" onClick={onStartOver} className="min-h-11 self-center">
+        Use a different number
+      </Button>
+    </form>
+  );
+}
+
+/* ---------- PreferencesForm ---------- */
+
+export const preferencesFormPropsSchema = z.object({
+  defaultValues: preferencesRequestSchema,
+  onSubmit: zFn<(values: PreferencesRequest) => Promise<void> | void>(),
+  submitting: z.boolean().optional(),
+  saved: z.boolean().optional(),
+  serverError: z.string().optional(),
+  className: zClassName,
+});
+
+export type PreferencesFormProps = z.input<typeof preferencesFormPropsSchema>;
+
+const PREFERENCES: { key: keyof PreferencesRequest; label: string; hint: string }[] = [
+  { key: "sms", label: "SMS updates", hint: "Waiting room turns, order confirmations and gate changes" },
+  { key: "email", label: "Email receipts", hint: "Receipts, refunds and transfer updates" },
+  { key: "marketing", label: "News and offers", hint: "Presales and offers from Matchpass and organisers" },
+];
+
+/** Organism · PreferencesForm — how Matchpass contacts the fan. */
+export function PreferencesForm(props: PreferencesFormProps) {
+  validateProps("PreferencesForm", preferencesFormPropsSchema, props);
+  const { defaultValues, onSubmit, submitting, saved, serverError, className } = props;
+  const form = useForm<PreferencesRequest>({ resolver: zodResolver(preferencesRequestSchema), defaultValues });
+  const baseId = useId();
+  return (
+    <form
+      noValidate
+      aria-labelledby={`${baseId}-title`}
+      onSubmit={form.handleSubmit((v) => onSubmit(v))}
+      className={cn("flex flex-col gap-4 rounded-2xl border border-line bg-white p-5 sm:p-6", className)}
+    >
+      <h2 id={`${baseId}-title`} className="text-lg font-semibold">
+        Notifications
+      </h2>
+      <ul className="m-0 flex list-none flex-col gap-1 p-0">
+        {PREFERENCES.map((pref) => (
+          <li key={pref.key} className="flex items-center justify-between gap-4 border-b border-line py-3 last:border-b-0">
+            <span className="flex flex-col">
+              <label htmlFor={`${baseId}-${pref.key}`} className="text-[15px] font-semibold">
+                {pref.label}
+              </label>
+              <span id={`${baseId}-${pref.key}-hint`} className="text-sm text-sub">
+                {pref.hint}
+              </span>
+            </span>
+            <Controller
+              control={form.control}
+              name={pref.key}
+              render={({ field }) => (
+                <Switch
+                  id={`${baseId}-${pref.key}`}
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                  aria-describedby={`${baseId}-${pref.key}-hint`}
+                />
+              )}
+            />
+          </li>
+        ))}
+      </ul>
+      {serverError ? <Notice tone="danger">{serverError}</Notice> : null}
+      <div className="flex items-center gap-3">
+        <Button type="submit" variant="primary" size="lg" loading={submitting} loadingText="Saving…">
+          Save preferences
+        </Button>
+        {saved ? (
+          <span role="status" className="flex items-center gap-1 text-sm font-semibold text-pitch">
+            <Check className="size-4" aria-hidden="true" /> Saved
+          </span>
+        ) : null}
+      </div>
+    </form>
+  );
+}
+
+/* ---------- AccountProfileCard ---------- */
+
+export const accountProfileCardPropsSchema = z.object({
+  user: userSchema,
+  fanIdHref: zHref,
+  onSignOut: zFn<() => void>(),
+  className: zClassName,
+});
+
+export type AccountProfileCardProps = z.input<typeof accountProfileCardPropsSchema>;
+
+/** Organism · AccountProfileCard — who is signed in, their Fan ID status and credit. */
+export function AccountProfileCard(props: AccountProfileCardProps) {
+  validateProps("AccountProfileCard", accountProfileCardPropsSchema, props);
+  const { user, fanIdHref, onSignOut, className } = props;
+  const fanId = user.fanId;
+  return (
+    <section
+      aria-labelledby="profile-title"
+      className={cn("flex flex-col gap-4 rounded-2xl border border-line bg-white p-5 sm:p-6", className)}
+    >
+      <div className="flex items-center gap-4">
+        <Avatar initials={user.initials} size="lg" />
+        <div className="flex flex-col">
+          <h2 id="profile-title" className="text-xl font-semibold">
+            {user.fullName}
+          </h2>
+          <span className="font-mono text-sm text-sub">{user.phoneMasked}</span>
+          {user.email ? <span className="text-sm text-sub">{user.email}</span> : null}
+        </div>
+      </div>
+      <dl className="m-0 grid grid-cols-2 gap-3">
+        <div className="flex flex-col gap-1 rounded-xl bg-paper p-3">
+          <dt className="text-xs font-semibold tracking-wide text-muted-ink uppercase">Fan ID</dt>
+          <dd className="m-0 text-[15px] font-semibold">
+            {fanId.status === "approved" ? fanId.number : fanId.status === "pending" ? "Under review" : "Not yet"}
+          </dd>
+        </div>
+        <div className="flex flex-col gap-1 rounded-xl bg-paper p-3">
+          <dt className="text-xs font-semibold tracking-wide text-muted-ink uppercase">Matchpass credit</dt>
+          <dd className="m-0 font-mono text-[15px] font-semibold">{formatMoney(user.credit)}</dd>
+        </div>
+      </dl>
+      <div className="flex flex-wrap gap-2.5">
+        {fanId.status !== "approved" ? (
+          <LinkButton href={fanIdHref} variant="pitch" size="lg">
+            {fanId.status === "pending" ? "Check Fan ID status" : "Get your Fan ID"}
+          </LinkButton>
+        ) : null}
+        <Button variant="outline" size="lg" onClick={onSignOut} className="font-normal">
+          <LogOut aria-hidden="true" /> Sign out
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+/* ---------- LinkedFansManager ---------- */
+
+export const MAX_LINKED_FANS = 3;
+
+export const linkedFansManagerPropsSchema = z.object({
+  fans: z.array(fanSchema),
+  onLink: zFn<(values: z.output<typeof linkFanRequestSchema>) => Promise<void> | void>(),
+  onUnlink: zFn<(fanId: string) => Promise<void> | void>(),
+  canLink: z.boolean(),
+  submitting: z.boolean().optional(),
+  serverError: z.string().optional(),
+  className: zClassName,
+});
+
+export type LinkedFansManagerProps = z.input<typeof linkedFansManagerPropsSchema>;
+
+/** Organism · LinkedFansManager — family and friends you can buy match tickets for. */
+export function LinkedFansManager(props: LinkedFansManagerProps) {
+  validateProps("LinkedFansManager", linkedFansManagerPropsSchema, props);
+  const { fans, onLink, onUnlink, canLink, submitting, serverError, className } = props;
+  const others = fans.filter((f) => !f.isSelf);
+  const form = useForm<LinkFanRequest, unknown, z.output<typeof linkFanRequestSchema>>({
+    resolver: zodResolver(linkFanRequestSchema),
+    defaultValues: { name: "", fanIdNumber: "" },
+  });
+  const e = form.formState.errors;
+  const full = others.length >= MAX_LINKED_FANS;
+  return (
+    <section
+      aria-labelledby="fans-title"
+      className={cn("flex flex-col gap-4 rounded-2xl border border-line bg-white p-5 sm:p-6", className)}
+    >
+      <div className="flex flex-col gap-1">
+        <h2 id="fans-title" className="text-lg font-semibold">
+          Linked fans
+        </h2>
+        <p className="text-sm text-sub">Buy match tickets for up to {MAX_LINKED_FANS} family members or friends with their own Fan ID.</p>
+      </div>
+      {fans.length ? (
+        <ul className="m-0 flex list-none flex-col p-0">
+          {fans.map((fan) => (
+            <li key={fan.id} className="flex items-center justify-between gap-3 border-b border-line py-3 last:border-b-0">
+              <HolderRow initials={fan.initials} name={fan.name} detail={fan.fanIdMasked} />
+              {fan.isSelf ? null : (
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="min-h-11 text-rose-ink"
+                  onClick={() => onUnlink(fan.id)}
+                  aria-label={`Unlink ${fan.name}`}
+                >
+                  Unlink
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {canLink && !full ? (
+        <form
+          noValidate
+          aria-label="Link a fan"
+          onSubmit={form.handleSubmit(async (v) => {
+            await onLink(v);
+            form.reset();
+          })}
+          className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] items-start gap-3 border-t border-line pt-4"
+        >
+          <Field label="Their full name" error={e.name?.message} required>
+            <Input autoComplete="off" className="h-12" {...form.register("name")} />
+          </Field>
+          <Field label="Their Fan ID number" error={e.fanIdNumber?.message} required>
+            <Input mono inputMode="numeric" placeholder="2210 4417 0000" className="h-12" {...form.register("fanIdNumber")} />
+          </Field>
+          <Button type="submit" variant="primary" size="lg" loading={submitting} className="sm:mt-7">
+            Link fan
+          </Button>
+        </form>
+      ) : canLink ? (
+        <p className="text-sm text-sub">You’ve linked the maximum of {MAX_LINKED_FANS} fans. Unlink someone to add another.</p>
+      ) : (
+        <Notice tone="info">Get your own Fan ID first, then you can link family and friends.</Notice>
+      )}
+      {serverError ? <Notice tone="danger">{serverError}</Notice> : null}
+    </section>
   );
 }

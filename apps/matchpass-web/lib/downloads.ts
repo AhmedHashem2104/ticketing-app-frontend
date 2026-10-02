@@ -1,8 +1,6 @@
-import { formatAmount, formatMoney, type Order } from "@repo/contracts";
+import { addHours, formatAmount, formatMoney, icsTimestamp, type Order } from "@repo/contracts";
 
-const pad = (n: number) => String(n).padStart(2, "0");
-const icsDate = (date: Date) =>
-  `${date.getUTCFullYear()}${pad(date.getUTCMonth() + 1)}${pad(date.getUTCDate())}T${pad(date.getUTCHours())}${pad(date.getUTCMinutes())}00Z`;
+const icsDate = (date: Date | string) => icsTimestamp(date);
 const escapeIcs = (text: string) =>
   text
     .replace(/\\/g, "\\\\")
@@ -12,9 +10,9 @@ const escapeIcs = (text: string) =>
 export type CalendarEvent = { id: string; title: string; startsAt: string; durationHours?: number; location: string; description?: string };
 
 /** Builds an RFC 5545 calendar file for an event. */
-export function buildIcs(event: CalendarEvent, now = new Date()) {
-  const start = new Date(event.startsAt);
-  const end = new Date(start.getTime() + (event.durationHours ?? 2.5) * 3_600_000);
+export function buildIcs(event: CalendarEvent, now: Date | string = new Date()) {
+  const start = event.startsAt;
+  const end = addHours(start, event.durationHours ?? 2.5);
   return [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",

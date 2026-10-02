@@ -14,7 +14,16 @@ import {
 import express, { Router } from "express";
 import type { AppConfig } from "../config";
 import { arenaMap, cinemaMap, cinemaSeats, hallMap, parseShowtimeId, stadiumMap, stadiumZones } from "../data/seating";
-import { gaSpec, matchSpec, type Store, type StoredFan, type StoredHold, type StoredOrder, type StoredUser, type TicketSpec } from "../data/store";
+import {
+  gaSpec,
+  matchSpec,
+  type Store,
+  type StoredFan,
+  type StoredHold,
+  type StoredOrder,
+  type StoredUser,
+  type TicketSpec,
+} from "../data/store";
 import { addHours, addMinutes, addSeconds, dayLabel, timeLabel } from "../data/time";
 import { currentUser, requireAuth } from "../http/auth";
 import { HttpError, notFound } from "../http/errors";
@@ -121,7 +130,10 @@ function draftSeats(store: Store, user: StoredUser, event: EventDetail, req: Ext
     const taken = store.fanNumbersWithTickets(event.id);
     const fans = approvedFans(user).filter((f) => !f.number || !taken.has(f.number));
     if (req.seatIds.length > fans.length) {
-      throw new HttpError("LIMIT_EXCEEDED", "You can pick one seat for each approved Fan ID on your account that doesn't already have a ticket");
+      throw new HttpError(
+        "LIMIT_EXCEEDED",
+        "You can pick one seat for each approved Fan ID on your account that doesn't already have a ticket",
+      );
     }
     const map = stadiumMap(event, store.unavailable(event.id, user.id));
     const specs = req.seatIds.map((seatId, i) => {
@@ -133,10 +145,21 @@ function draftSeats(store: Store, user: StoredUser, event: EventDetail, req: Ext
       if (block.away) throw new HttpError("FORBIDDEN", "Away blocks are for away Fan IDs only");
       if (code === "x") throw new HttpError("SEAT_UNAVAILABLE", `Seat ${seatId} was just taken — pick another`);
       const fan = fans[i]!;
-      return matchSpec(cleanName(fan.name), `${fan.fanIdMasked} · bring your ID card`, block.id, row.label, Number(seatNo), block.price, fan.number);
+      return matchSpec(
+        cleanName(fan.name),
+        `${fan.fanIdMasked} · bring your ID card`,
+        block.id,
+        row.label,
+        Number(seatNo),
+        block.price,
+        fan.number,
+      );
     });
     return {
-      lines: group(specs, (s) => `${map.blocks.find((b) => b.id === s.fields[1]?.value)?.category ?? "Seat"} · Block ${s.fields[1]?.value}`),
+      lines: group(
+        specs,
+        (s) => `${map.blocks.find((b) => b.id === s.fields[1]?.value)?.category ?? "Seat"} · Block ${s.fields[1]?.value}`,
+      ),
       specs,
       seatKeys: req.seatIds,
       soldKey: event.id,
@@ -234,13 +257,27 @@ function draftTicketTypes(user: StoredUser, event: EventDetail, req: Extract<Hol
     for (let i = 0; i < item.quantity; i += 1) {
       position += 1;
       const seated = type.id === "sa" || type.id === "sb";
-      specs.push(gaSpec(holder, type.name.split(" ")[0] ?? type.name, seated ? "Seated" : "Standing", ENTRANCES[type.id] ?? "A", `${position} / ${count}`, type.price));
+      specs.push(
+        gaSpec(
+          holder,
+          type.name.split(" ")[0] ?? type.name,
+          seated ? "Seated" : "Standing",
+          ENTRANCES[type.id] ?? "A",
+          `${position} / ${count}`,
+          type.price,
+        ),
+      );
     }
   }
   return {
     lines: req.items.map((item) => {
       const type = map.ticketTypes.find((t) => t.id === item.ticketTypeId)!;
-      return { label: `${type.name} × ${item.quantity}`, quantity: item.quantity, unitPrice: type.price, amount: type.price * item.quantity };
+      return {
+        label: `${type.name} × ${item.quantity}`,
+        quantity: item.quantity,
+        unitPrice: type.price,
+        amount: type.price * item.quantity,
+      };
     }),
     specs,
     seatKeys: [],
@@ -252,7 +289,8 @@ function draftTicketTypes(user: StoredUser, event: EventDetail, req: Extract<Hol
 /** Buying a fan's ticket on official resale: the seller's ticket is re-issued to the buyer. */
 function draftResale(store: Store, user: StoredUser, event: EventDetail, req: Extract<HoldRequest, { type: "resale" }>): Draft {
   const listing = store.listings.get(req.listingId);
-  if (!listing || listing.eventId !== event.id || listing.status !== "listed") throw new HttpError("SEAT_UNAVAILABLE", "This resale ticket was just bought by someone else");
+  if (!listing || listing.eventId !== event.id || listing.status !== "listed")
+    throw new HttpError("SEAT_UNAVAILABLE", "This resale ticket was just bought by someone else");
   if (listing.userId === user.id) throw new HttpError("CONFLICT", "This is your own listing");
   store.purgeExpiredHolds();
   if ([...store.holds.values()].some((h) => h.listingId === listing.id && h.userId !== user.id)) {
@@ -352,7 +390,8 @@ export function checkoutRouter(store: Store, config: AppConfig) {
   const ownedHold = (id: string, userId: string) => {
     store.purgeExpiredHolds();
     const hold = store.holds.get(id);
-    if (!hold || hold.userId !== userId) throw new HttpError("HOLD_EXPIRED", "Your hold ran out and the tickets went back on sale. Choose again.");
+    if (!hold || hold.userId !== userId)
+      throw new HttpError("HOLD_EXPIRED", "Your hold ran out and the tickets went back on sale. Choose again.");
     return hold;
   };
 
@@ -460,7 +499,10 @@ export function checkoutRouter(store: Store, config: AppConfig) {
     const discount = promo.apply(hold.subtotal);
     hold.discount = discount;
     hold.promoCode = code;
-    hold.lines = [...hold.lines.filter((l) => !l.label.startsWith("Promo")), { label: `Promo ${promo.label}`, quantity: 1, unitPrice: -discount, amount: -discount }];
+    hold.lines = [
+      ...hold.lines.filter((l) => !l.label.startsWith("Promo")),
+      { label: `Promo ${promo.label}`, quantity: 1, unitPrice: -discount, amount: -discount },
+    ];
     hold.total = hold.subtotal + hold.fees - discount;
     res.json(toPublicHold(hold));
   });
@@ -475,7 +517,8 @@ export function checkoutRouter(store: Store, config: AppConfig) {
       if (o.holdId === hold.id && o.status === "pending_payment") store.failPayment(o, "Replaced by a new payment attempt");
     }
     const sold = store.soldFor(hold.soldKey);
-    if (hold.seatKeys.some((key) => sold.has(key))) throw new HttpError("SEAT_UNAVAILABLE", "Some of your seats were just taken. Choose again.");
+    if (hold.seatKeys.some((key) => sold.has(key)))
+      throw new HttpError("SEAT_UNAVAILABLE", "Some of your seats were just taken. Choose again.");
 
     const orderId = store.id("ord");
     const plan = paymentPlan(store, config, { id: orderId }, body.payment, hold);
@@ -496,7 +539,9 @@ export function checkoutRouter(store: Store, config: AppConfig) {
       eventMeta: hold.eventMeta,
       eventKind: event.kind,
       theme: event.theme,
-      entryNote: isMatch ? `Gates open ${event.gatesOpenAt ?? ""}${gate ? ` · Use Gate ${gate}` : ""}` : `Doors open ${event.doorsAt ?? timeLabel(event.startsAt)}`,
+      entryNote: isMatch
+        ? `Gates open ${event.gatesOpenAt ?? ""}${gate ? ` · Use Gate ${gate}` : ""}`
+        : `Doors open ${event.doorsAt ?? timeLabel(event.startsAt)}`,
       total: hold.total,
       paymentLabel: plan.paymentLabel,
       createdAt: store.now().toISOString(),
@@ -508,12 +553,21 @@ export function checkoutRouter(store: Store, config: AppConfig) {
             { title: "Can't make it?", body: "Transfer to a linked fan or sell at face value on official resale." },
           ]
         : [
-            { title: event.kind === "cinema" ? "Your QR is ready now" : "QR appears 24 hours before doors", body: "Find it in My tickets." },
+            {
+              title: event.kind === "cinema" ? "Your QR is ready now" : "QR appears 24 hours before doors",
+              body: "Find it in My tickets.",
+            },
             { title: "No ID needed", body: "Your Matchpass account is enough at the entrance." },
             { title: "Can't make it?", body: "Send a ticket to a friend or resell it officially." },
           ],
       ...(isMatch
-        ? { parkingOffer: { title: "Add parking for this match", detail: `P2 West, 5 minutes from Gate ${gate ?? "7"} · ${formatMoney(50)}`, price: 50 } }
+        ? {
+            parkingOffer: {
+              title: "Add parking for this match",
+              detail: `P2 West, 5 minutes from Gate ${gate ?? "7"} · ${formatMoney(50)}`,
+              price: 50,
+            },
+          }
         : {}),
     };
     store.orders.set(order.id, order);
@@ -563,7 +617,14 @@ export function checkoutRouter(store: Store, config: AppConfig) {
       res
         .status(400)
         .type("html")
-        .send(hostedPaymentPage({ action: `/api/payments/${session}`, order, errors, values: { nameOnCard: String(req.body?.nameOnCard ?? "") } }));
+        .send(
+          hostedPaymentPage({
+            action: `/api/payments/${session}`,
+            order,
+            errors,
+            values: { nameOnCard: String(req.body?.nameOnCard ?? "") },
+          }),
+        );
       return;
     }
     store.paymentSessions.delete(session);

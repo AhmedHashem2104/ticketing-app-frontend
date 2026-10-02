@@ -19,7 +19,7 @@ import { AppFooter, AppHeader } from "@/components/app-chrome";
 import { errorMessage } from "@/lib/api/client";
 import { RequireAuth } from "@/lib/auth/session";
 import { useFeatureFlags } from "@/lib/feature-flags/client";
-import { useCinemaSeats, useCreateHold, useEvent, useSeatMap } from "@/lib/queries";
+import { useCinemaSeats, useCreateHold, useEvent, useSeatMap, useUnavailableFans } from "@/lib/queries";
 import { routes } from "@/lib/routes";
 import { turnKey } from "./queue-view";
 import { QueryPage } from "./shared";
@@ -103,8 +103,11 @@ function ZonePickerView({ event, user, map }: { event: EventDetail; user: User; 
   const flags = useFeatureFlags();
   const checkout = useCheckout();
   const self = user.linkedFans.find((f) => f.isSelf && f.status === "approved");
+  const eligibility = useUnavailableFans(event.slug, true);
   const [zoneId, setZoneId] = useState("cat1");
-  const [fanIds, setFanIds] = useState<string[]>(self ? [self.id] : []);
+  const [picked, setFanIds] = useState<string[] | undefined>();
+  // Pre-select the fan themselves — unless they already have a ticket for this match.
+  const fanIds = picked ?? (self && eligibility.ready && !eligibility.unavailable[self.id] ? [self.id] : []);
   const [turnEndsAt] = useState(() =>
     typeof window === "undefined" ? undefined : (sessionStorage.getItem(turnKey(event.id)) ?? undefined),
   );
@@ -126,7 +129,8 @@ function ZonePickerView({ event, user, map }: { event: EventDetail; user: User; 
       maxTickets={event.maxPerOrder}
       serviceFee={event.serviceFee}
       exactSeatsHref={flags.exactSeatSelection ? routes.seats(event.slug) : undefined}
-      linkFanHref={flags.fanId ? routes.fanId : undefined}
+      linkFanHref={flags.fanId ? routes.account : undefined}
+      unavailableFans={eligibility.unavailable}
       cta={{
         onContinue: () => checkout.submit({ type: "zone", eventId: event.id, zoneId, fanIds }),
         submitting: checkout.submitting,
@@ -282,7 +286,9 @@ function StadiumSeatsLoader({ event, user }: { event: EventDetail; user: User })
 
 function StadiumSeats({ event, user, map }: { event: EventDetail; user: User; map: StadiumSeatMap }) {
   const checkout = useCheckout();
-  const maxSeats = Math.max(1, Math.min(event.maxPerOrder, user.linkedFans.filter((f) => f.status === "approved").length));
+  const eligibility = useUnavailableFans(event.slug, true);
+  const eligibleFans = user.linkedFans.filter((f) => f.status === "approved" && !eligibility.unavailable[f.id]).length;
+  const maxSeats = Math.max(1, Math.min(event.maxPerOrder, eligibleFans));
   const [blockId, setBlockId] = useState(
     () => map.blocks.find((b) => b.side === "W" && !b.away && b.rows.some((r) => r.seats.includes("a")))?.id ?? map.blocks[0]!.id,
   );

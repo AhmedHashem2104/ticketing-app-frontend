@@ -190,7 +190,15 @@ describe("cinema and resale listings", () => {
     const { api } = setup();
     const res = await api.get("/api/events/nile-philharmonic-film-classics/resale").expect(200);
     expect(res.body).toEqual([
-      { id: "lst_resale_3", eventId: "evt_nile_philharmonic", label: "Fan resale", seatLabel: "Stalls · Row B · Seat 9", price: 550, faceValue: 600, requiresFanId: false },
+      {
+        id: "lst_resale_3",
+        eventId: "evt_nile_philharmonic",
+        label: "Fan resale",
+        seatLabel: "Stalls · Row B · Seat 9",
+        price: 550,
+        faceValue: 600,
+        requiresFanId: false,
+      },
     ]);
     await api.get("/api/events/nope/resale").expect(404);
   });

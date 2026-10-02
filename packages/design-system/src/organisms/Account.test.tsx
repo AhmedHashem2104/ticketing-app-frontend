@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { expectInvalidProps, expectNoA11yViolations, renderUI } from "../../test/utils";
@@ -195,7 +195,7 @@ describe("FanIdWizard", () => {
     await user.upload(screen.getByLabelText("Take photo or upload · back side"), photo());
     expect(screen.getByText("Front side added")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Continue" }));
-    expect(onScan).toHaveBeenCalledWith({ documentType: "national_id", frontCaptured: true, backCaptured: true });
+    expect(onScan).toHaveBeenCalledWith({ documentType: "national_id", front: expect.any(File), back: expect.any(File) });
     expect(screen.getByRole("heading", { level: 1, name: "Confirm it’s you" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Continue" }));
     expect(screen.getByRole("alert")).toHaveTextContent("Take a selfie to continue");
@@ -206,7 +206,7 @@ describe("FanIdWizard", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Confirm your details to continue");
     await user.click(screen.getByRole("checkbox", { name: /I confirm these details are correct/ }));
     await user.click(screen.getByRole("button", { name: "Submit for verification" }));
-    expect(onSubmit).toHaveBeenCalledWith({ scanId: "scan_1", selfieCaptured: true, confirmDetails: true });
+    expect(onSubmit).toHaveBeenCalledWith({ scanId: "scan_1", selfie: expect.any(File), confirmDetails: true });
     expect(screen.getByRole("heading", { level: 1, name: "Your Fan ID is ready" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Browse matches" })).toHaveAttribute("href", "/events");
   });
@@ -220,7 +220,31 @@ describe("FanIdWizard", () => {
     expect(screen.queryByLabelText(/back side/)).not.toBeInTheDocument();
     await user.upload(screen.getByLabelText("Take photo or upload · front side"), photo());
     await user.click(screen.getByRole("button", { name: "Continue" }));
-    expect(onScan).toHaveBeenCalledWith({ documentType: "passport", frontCaptured: true, backCaptured: false });
+    expect(onScan).toHaveBeenCalledWith({ documentType: "passport", front: expect.any(File) });
+  });
+
+  it("rejects photos that are the wrong type or too large", async () => {
+    const onScan = vi.fn();
+    const { user } = renderUI(<Harness onScan={onScan} />);
+    await user.click(screen.getByRole("radio", { name: /Passport/ }));
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    const input = screen.getByLabelText("Take photo or upload · front side");
+    fireEvent.change(input, { target: { files: [new File(["%PDF"], "scan.pdf", { type: "application/pdf" })] } });
+    expect(screen.getByText("Use a JPG, PNG, WEBP or HEIC photo")).toBeInTheDocument();
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    const huge = new File(["x"], "big.jpg", { type: "image/jpeg" });
+    Object.defineProperty(huge, "size", { value: 9 * 1024 * 1024 });
+    fireEvent.change(screen.getByLabelText(/front side/), { target: { files: [huge] } });
+    expect(screen.getByText("Photos must be smaller than 8 MB")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    expect(onScan).not.toHaveBeenCalled();
+  });
+
+  it("shows the review state while the identity check runs", async () => {
+    const { container } = renderUI(<Harness step={5} approved={undefined} underReview />);
+    expect(screen.getByRole("heading", { level: 1, name: "We’re checking your details" })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("usually takes a few minutes");
+    await expectNoA11yViolations(container);
   });
 
   it("offers a skip link and validates props", () => {

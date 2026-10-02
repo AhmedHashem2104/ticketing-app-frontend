@@ -30,7 +30,9 @@ describe("sign up and OTP", () => {
 
   it("burns the code after too many wrong attempts", async () => {
     const { api } = setup();
-    const signup = await api.post("/api/auth/signup").send({ fullName: "Sara Ahmed", phone: "1112345678", password: "supersecret", acceptTerms: true });
+    const signup = await api
+      .post("/api/auth/signup")
+      .send({ fullName: "Sara Ahmed", phone: "1112345678", password: "supersecret", acceptTerms: true });
     const { verificationId } = signup.body;
     for (let i = 0; i < MAX_OTP_ATTEMPTS; i += 1) await api.post("/api/auth/verify").send({ verificationId, code: "000000" }).expect(400);
     const locked = await api.post("/api/auth/verify").send({ verificationId, code: DEMO_USER.otp }).expect(429);
@@ -56,7 +58,9 @@ describe("sign up and OTP", () => {
 
   it("only resends a code after the cooldown", async () => {
     const { api, advance } = setup();
-    const signup = await api.post("/api/auth/signup").send({ fullName: "Sara Ahmed", phone: "1112345678", password: "supersecret", acceptTerms: true });
+    const signup = await api
+      .post("/api/auth/signup")
+      .send({ fullName: "Sara Ahmed", phone: "1112345678", password: "supersecret", acceptTerms: true });
     const early = await api.post("/api/auth/resend").send({ verificationId: signup.body.verificationId }).expect(429);
     expect(early.body.error.message).toMatch(/45 seconds/);
     advance(RESEND_SECONDS * 1000);
@@ -149,7 +153,9 @@ describe("password reset", () => {
 
   it("won't accept a sign-up code for a reset", async () => {
     const { api } = setup();
-    const signup = await api.post("/api/auth/signup").send({ fullName: "Sara Ahmed", phone: "1112345678", password: "supersecret", acceptTerms: true });
+    const signup = await api
+      .post("/api/auth/signup")
+      .send({ fullName: "Sara Ahmed", phone: "1112345678", password: "supersecret", acceptTerms: true });
     await api
       .post("/api/auth/password/reset")
       .send({ verificationId: signup.body.verificationId, code: DEMO_USER.otp, password: "brandnewpass", confirmPassword: "brandnewpass" })
@@ -184,7 +190,12 @@ describe("Fan ID", () => {
     const { api, signUpNewUser, auth, advance, config } = setup();
     const token = await signUpNewUser();
 
-    const missingBack = await api.post("/api/fan-id/documents").set(auth(token)).field("documentType", "national_id").attach("front", photo(), JPEG).expect(400);
+    const missingBack = await api
+      .post("/api/fan-id/documents")
+      .set(auth(token))
+      .field("documentType", "national_id")
+      .attach("front", photo(), JPEG)
+      .expect(400);
     expect(missingBack.body.error.details).toEqual([{ path: "back", message: "Add a photo of the back" }]);
 
     const scan = await api
@@ -196,7 +207,12 @@ describe("Fan ID", () => {
       .expect(200);
     expect(scan.body.nameEn).toBe("Sara Ahmed");
 
-    const noSelfie = await api.post("/api/fan-id").set(auth(token)).field("scanId", scan.body.scanId).field("confirmDetails", "true").expect(400);
+    const noSelfie = await api
+      .post("/api/fan-id")
+      .set(auth(token))
+      .field("scanId", scan.body.scanId)
+      .field("confirmDetails", "true")
+      .expect(400);
     expect(noSelfie.body.error.details[0].message).toBe("Take a selfie to continue");
 
     const pending = await api
@@ -247,7 +263,13 @@ describe("Fan ID", () => {
     const t1 = await signUpNewUser("1112345678");
     const scan = await api.post("/api/fan-id/documents").set(auth(t1)).field("documentType", "passport").attach("front", photo(), JPEG);
     const other = await signUpNewUser("1112345679");
-    await api.post("/api/fan-id").set(auth(other)).field("scanId", scan.body.scanId).field("confirmDetails", "true").attach("selfie", photo(), JPEG).expect(404);
+    await api
+      .post("/api/fan-id")
+      .set(auth(other))
+      .field("scanId", scan.body.scanId)
+      .field("confirmDetails", "true")
+      .attach("selfie", photo(), JPEG)
+      .expect(404);
   });
 });
 
@@ -267,7 +289,11 @@ describe("linked fans", () => {
     const known = await api.post("/api/me/fans").set(auth(token)).send({ name: "Omar Khaled", fanIdNumber: "2210 4417 4821" }).expect(201);
     expect(fanSchema.parse(known.body)).toMatchObject({ name: "Omar K.", status: "approved", fanIdMasked: "Fan ID •••• 4821" });
     await api.post("/api/me/fans").set(auth(token)).send({ name: "Omar Khaled", fanIdNumber: "2210 4417 4821" }).expect(409);
-    const unknown = await api.post("/api/me/fans").set(auth(token)).send({ name: "Nour Hassan", fanIdNumber: "2210 4417 0001" }).expect(201);
+    const unknown = await api
+      .post("/api/me/fans")
+      .set(auth(token))
+      .send({ name: "Nour Hassan", fanIdNumber: "2210 4417 0001" })
+      .expect(201);
     expect(unknown.body.status).toBe("under_review");
 
     await api.delete(`/api/me/fans/${unknown.body.id}`).set(auth(token)).expect(204);

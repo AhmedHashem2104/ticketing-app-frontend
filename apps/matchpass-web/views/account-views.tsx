@@ -1,14 +1,28 @@
 "use client";
 
-import type { FanIdExtracted, FanIdStatus, User } from "@repo/contracts";
-import { FanIdPage, LoginPage, SignUpPage } from "@repo/design-system";
+import { addSeconds, type FanIdExtracted, type User } from "@repo/contracts";
+import { AccountPage, FanIdPage, ForgotPasswordPage, LoginPage, NotificationsPage, SignUpPage } from "@repo/design-system";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AppHeader } from "@/components/app-chrome";
 import { errorMessage, toApiError } from "@/lib/api/client";
 import { RequireAuth, safeNextPath, useAuth } from "@/lib/auth/session";
 import { useFeatureFlags } from "@/lib/feature-flags/client";
-import { useFanIdScan, useFanIdSubmit, useLogin, useResendCode, useSignUp, useVerifyOtp } from "@/lib/queries";
+import {
+  useFanIdDocuments,
+  useFanIdSubmit,
+  useForgotPassword,
+  useLinkFan,
+  useLogin,
+  useMarkNotificationsRead,
+  useNotifications,
+  useResendCode,
+  useResetPassword,
+  useSignUp,
+  useUnlinkFan,
+  useUpdatePreferences,
+  useVerifyOtp,
+} from "@/lib/queries";
 import { routes } from "@/lib/routes";
 import { authBrand } from "./shared";
 
@@ -30,6 +44,8 @@ function LanguageToggle() {
     </button>
   );
 }
+
+const resendAt = (seconds: number) => addSeconds(new Date(), seconds).toISOString();
 
 /* ---------- Sign up + OTP ---------- */
 
@@ -58,7 +74,7 @@ export function SignUpView() {
                 setPending({
                   verificationId: res.verificationId,
                   maskedPhone: res.maskedPhone,
-                  resendAvailableAt: new Date(Date.now() + res.resendInSeconds * 1000).toISOString(),
+                  resendAvailableAt: resendAt(res.resendInSeconds),
                 }),
             }),
           submitting: signUp.isPending,
@@ -90,15 +106,14 @@ export function SignUpView() {
           ),
         onResend: () =>
           resend.mutate(pending.verificationId, {
-            onSuccess: (res) =>
-              setPending({ ...pending, resendAvailableAt: new Date(Date.now() + res.resendInSeconds * 1000).toISOString() }),
+            onSuccess: (res) => setPending({ ...pending, resendAvailableAt: resendAt(res.resendInSeconds) }),
           }),
         onChangeNumber: () => {
           verify.reset();
           setPending(undefined);
         },
         submitting: verify.isPending,
-        serverError: errorMessage(verify.error),
+        serverError: errorMessage(verify.error ?? resend.error),
         note: flags.fanId
           ? "Next we'll set up your Fan ID — you need it for football matches. You can skip it if you only buy concert tickets."
           : undefined,
@@ -124,7 +139,13 @@ export function LoginView() {
     <LoginPage
       brand={authBrand}
       topRight={<LanguageToggle />}
-      notice={params.get("next") ? "Log in to continue." : undefined}
+      notice={
+        params.get("reset")
+          ? "Your password was changed. You're signed in on this device only."
+          : params.get("next")
+            ? "Log in to continue."
+            : undefined
+      }
       login={{
         onSubmit: (values) =>
           login.mutate(values, {
@@ -136,6 +157,46 @@ export function LoginView() {
         submitting: login.isPending,
         serverError: errorMessage(login.error),
         signUpHref: params.get("next") ? `${routes.signUp}?next=${encodeURIComponent(params.get("next")!)}` : routes.signUp,
+        forgotHref: routes.forgotPassword,
+      }}
+    />
+  );
+}
+
+/* ---------- Forgot password ---------- */
+
+export function ForgotPasswordView() {
+  const router = useRouter();
+  const auth = useAuth();
+  const forgot = useForgotPassword();
+  const reset = useResetPassword();
+  const [request, setRequest] = useState<{ verificationId: string; maskedPhone: string }>();
+  return (
+    <ForgotPasswordPage
+      brand={authBrand}
+      topRight={<LanguageToggle />}
+      form={{
+        stage: request ? "reset" : "request",
+        maskedPhone: request?.maskedPhone,
+        onRequest: (values) =>
+          forgot.mutate(values, { onSuccess: (res) => setRequest({ verificationId: res.verificationId, maskedPhone: res.maskedPhone }) }),
+        onReset: (values) =>
+          reset.mutate(
+            { verificationId: request!.verificationId, ...values },
+            {
+              onSuccess: (session) => {
+                auth.signIn(session);
+                router.replace(routes.myTickets);
+              },
+            },
+          ),
+        onStartOver: () => {
+          reset.reset();
+          setRequest(undefined);
+        },
+        submitting: forgot.isPending || reset.isPending,
+        serverError: errorMessage(request ? reset.error : forgot.error),
+        loginHref: routes.login(),
       }}
     />
   );
@@ -149,13 +210,18 @@ export function FanIdView() {
 
 function FanIdFlow({ user }: { user: User }) {
   const auth = useAuth();
-  const scan = useFanIdScan();
+  const documents = useFanIdDocuments();
   const submit = useFanIdSubmit();
-  const [step, setStep] = useState(user.fanId.status === "approved" ? 5 : 1);
+  const [step, setStep] = useState(user.fanId.status === "none" ? 1 : 5);
   const [extracted, setExtracted] = useState<FanIdExtracted>();
-  const [approved, setApproved] = useState<Extract<FanIdStatus, { status: "approved" }> | undefined>(
-    user.fanId.status === "approved" ? user.fanId : undefined,
-  );
+  const underReview = user.fanId.status === "pending";
+
+  // The identity check runs asynchronously: poll the profile until it's decided.
+  useEffect(() => {
+    if (!underReview) return;
+    const id = setInterval(() => void auth.refreshUser(), 3_000);
+    return () => clearInterval(id);
+  }, [underReview, auth]);
 
   return (
     <FanIdPage
@@ -163,22 +229,109 @@ function FanIdFlow({ user }: { user: User }) {
       wizard={{
         step,
         onStepChange: setStep,
-        onScan: (values) => scan.mutate(values, { onSuccess: (data) => (setExtracted(data), setStep(3)) }),
+        onScan: (values) =>
+          documents.mutate(values, {
+            onSuccess: (data) => {
+              setExtracted(data);
+              setStep(3);
+            },
+          }),
         extracted,
         onSubmit: (values) =>
           submit.mutate(values, {
-            onSuccess: (status) => {
-              if (status.status === "approved") setApproved(status);
+            onSuccess: () => {
               void auth.refreshUser();
               setStep(5);
             },
           }),
-        approved: approved ? { name: approved.nameEn, number: approved.number, validUntil: approved.validUntil } : undefined,
-        pending: scan.isPending || submit.isPending,
-        serverError: errorMessage(scan.error ?? submit.error),
+        approved:
+          user.fanId.status === "approved"
+            ? { name: user.fanId.nameEn, number: user.fanId.number, validUntil: user.fanId.validUntil }
+            : undefined,
+        underReview,
+        pending: documents.isPending || submit.isPending,
+        serverError: errorMessage(documents.error ?? submit.error),
         browseHref: routes.events("matches"),
-        skipHref: routes.home,
+        skipHref: routes.events("concerts"),
+        linkFansHref: routes.account,
       }}
+    />
+  );
+}
+
+/* ---------- Account ---------- */
+
+export function AccountView() {
+  return <RequireAuth>{(user) => <Account user={user} />}</RequireAuth>;
+}
+
+function Account({ user }: { user: User }) {
+  const router = useRouter();
+  const auth = useAuth();
+  const flags = useFeatureFlags();
+  const preferences = useUpdatePreferences();
+  const link = useLinkFan();
+  const unlink = useUnlinkFan();
+  return (
+    <AccountPage
+      header={<AppHeader />}
+      status="success"
+      profile={{
+        user,
+        fanIdHref: routes.fanId,
+        onSignOut: async () => {
+          await auth.signOut();
+          router.replace(routes.home);
+        },
+      }}
+      fans={
+        flags.fanId
+          ? {
+              fans: user.linkedFans,
+              canLink: user.fanId.status === "approved",
+              onLink: async (values) => {
+                await link.mutateAsync(values).catch(() => undefined);
+              },
+              onUnlink: (id) => unlink.mutate(id),
+              submitting: link.isPending,
+              serverError: errorMessage(link.error ?? unlink.error),
+            }
+          : undefined
+      }
+      preferences={{
+        defaultValues: user.preferences,
+        onSubmit: (values) => preferences.mutate(values),
+        submitting: preferences.isPending,
+        saved: preferences.isSuccess,
+        serverError: errorMessage(preferences.error),
+      }}
+      links={[
+        { label: "My tickets", description: "QR codes, transfers and resale", href: routes.myTickets },
+        { label: "Ticket transfers", description: "Accept tickets sent to you", href: routes.transfers },
+        ...(flags.refunds ? [{ label: "Refunds", description: "Request and track refunds", href: routes.refunds }] : []),
+        { label: "Notifications", description: "Orders, transfers and event updates", href: routes.notifications },
+        { label: "Help centre", description: "Fan ID, payments and entry", href: "/info/help" },
+      ]}
+    />
+  );
+}
+
+/* ---------- Notifications ---------- */
+
+export function NotificationsView() {
+  return <RequireAuth>{() => <Notifications />}</RequireAuth>;
+}
+
+function Notifications() {
+  const list = useNotifications();
+  const markRead = useMarkNotificationsRead();
+  return (
+    <NotificationsPage
+      header={<AppHeader />}
+      status={list.isPending ? "loading" : list.isError ? "error" : "success"}
+      onRetry={() => void list.refetch()}
+      items={list.data?.items ?? []}
+      onMarkAllRead={() => markRead.mutate(undefined)}
     />
   );
 }

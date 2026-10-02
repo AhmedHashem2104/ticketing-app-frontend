@@ -168,11 +168,12 @@ export function EventBanner(props: EventBannerProps) {
         <div className="flex items-center gap-[22px]">
           {poster ? (
             <div
-              role="img"
-              aria-label={`${title} poster`}
-              className="flex h-[120px] w-[84px] shrink-0 items-end rounded-lg bg-plum p-2 font-mono text-[10px] text-gold"
+              aria-hidden="true"
+              className="relative flex h-[120px] w-[84px] shrink-0 flex-col justify-between overflow-hidden rounded-lg bg-gradient-to-b from-plum to-ink p-2 text-white shadow-md"
             >
-              [POSTER]
+              <span className="absolute -top-6 -right-6 size-16 rounded-full bg-gold/80" />
+              <span className="relative font-mono text-[9px] tracking-[0.12em] text-gold">MATCHPASS</span>
+              <span className="relative font-display text-[15px] leading-[0.95] font-extrabold uppercase">{title}</span>
             </div>
           ) : null}
           <div className="flex flex-col gap-1">

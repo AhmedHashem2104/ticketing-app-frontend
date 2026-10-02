@@ -69,7 +69,14 @@ export function accountRouter(store: Store, config: AppConfig) {
   };
 
   const newVerification = (purpose: Verification["purpose"], userId?: string): Verification => {
-    const verification: Verification = { id: store.id("ver"), userId, code: DEMO_USER.otp, createdAt: store.now().getTime(), attempts: 0, purpose };
+    const verification: Verification = {
+      id: store.id("ver"),
+      userId,
+      code: DEMO_USER.otp,
+      createdAt: store.now().getTime(),
+      attempts: 0,
+      purpose,
+    };
     store.verifications.set(verification.id, verification);
     return verification;
   };
@@ -85,7 +92,10 @@ export function accountRouter(store: Store, config: AppConfig) {
     if (verification.code !== code) {
       verification.attempts += 1;
       const left = MAX_OTP_ATTEMPTS - verification.attempts;
-      throw new HttpError("INVALID_CODE", `That code isn't right. ${left > 0 ? `${left} attempt${left === 1 ? "" : "s"} left.` : "Request a new one."}`);
+      throw new HttpError(
+        "INVALID_CODE",
+        `That code isn't right. ${left > 0 ? `${left} attempt${left === 1 ? "" : "s"} left.` : "Request a new one."}`,
+      );
     }
     store.verifications.delete(verificationId);
     return verification;
@@ -141,7 +151,10 @@ export function accountRouter(store: Store, config: AppConfig) {
     if (failures.length >= config.loginAttempts) {
       const retry = Math.ceil((failures[0]! + LOGIN_WINDOW_MINUTES * 60_000 - store.now().getTime()) / 60_000);
       res.setHeader("Retry-After", String(retry * 60));
-      throw new HttpError("RATE_LIMITED", `Too many attempts. Try again in ${retry} minute${retry === 1 ? "" : "s"} or reset your password.`);
+      throw new HttpError(
+        "RATE_LIMITED",
+        `Too many attempts. Try again in ${retry} minute${retry === 1 ? "" : "s"} or reset your password.`,
+      );
     }
     const user = [...store.users.values()].find((u) => u.phone === phone);
     if (!user || user.password !== password) {
@@ -247,7 +260,11 @@ export function accountRouter(store: Store, config: AppConfig) {
   router.post("/fan-id/documents", auth, async (req, res) => {
     await runUpload(documentsUpload, req, res);
     const user = currentUser(res);
-    const parsed = fanIdDocumentsSchema.safeParse({ documentType: req.body?.documentType, front: fileMeta(req, "front"), back: fileMeta(req, "back") });
+    const parsed = fanIdDocumentsSchema.safeParse({
+      documentType: req.body?.documentType,
+      front: fileMeta(req, "front"),
+      back: fileMeta(req, "back"),
+    });
     if (!parsed.success) throw new HttpError("VALIDATION_ERROR", "Check your photos", zodDetails(parsed.error));
     const scanId = store.id("scan");
     store.scans.set(scanId, { userId: user.id, documentType: parsed.data.documentType, nameEn: user.fullName });

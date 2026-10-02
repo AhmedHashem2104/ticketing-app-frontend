@@ -18,7 +18,15 @@ import { Button, LinkButton } from "../atoms/Button";
 import { Eyebrow, Heading } from "../atoms/Typography";
 import { ErrorState, Legend, LoadingState } from "../molecules/Content";
 import { ChipGroup } from "../molecules/Navigation";
-import { CheckoutForm, checkoutFormPropsSchema, NextSteps, OrderHero, OrderPaymentStatus, OrderSummaryStrip, UpsellBanner } from "../organisms/Checkout";
+import {
+  CheckoutForm,
+  checkoutFormPropsSchema,
+  NextSteps,
+  OrderHero,
+  OrderPaymentStatus,
+  OrderSummaryStrip,
+  UpsellBanner,
+} from "../organisms/Checkout";
 import { EventContextBar, eventContextBarPropsSchema } from "../organisms/EventDetail";
 import { MinimalHeader } from "../organisms/Header";
 import { WaitingRoomPanel } from "../organisms/Queue";
@@ -116,6 +124,8 @@ export const zoneSelectionPagePropsSchema = z.object({
   serviceFee: z.number().nonnegative(),
   exactSeatsHref: zHref.optional(),
   linkFanHref: zHref.optional(),
+  /** Fans who can't get a ticket for this match, keyed by fan id, with the reason. */
+  unavailableFans: z.record(z.string(), z.string()).optional(),
   cta: ctaSchema,
 });
 
@@ -137,6 +147,7 @@ export function ZoneSelectionPage(props: ZoneSelectionPageProps) {
     serviceFee,
     exactSeatsHref,
     linkFanHref,
+    unavailableFans,
     cta,
   } = props;
   const zone = zones.find((z) => z.id === zoneId) ?? zones[0]!;
@@ -151,7 +162,14 @@ export function ZoneSelectionPage(props: ZoneSelectionPageProps) {
           aside={
             <>
               <ZoneSummaryCard zone={zone} />
-              <FanSelector fans={fans} value={fanIds} onValueChange={onFansChange} max={maxTickets} linkFanHref={linkFanHref} />
+              <FanSelector
+                fans={fans}
+                value={fanIds}
+                onValueChange={onFansChange}
+                max={maxTickets}
+                linkFanHref={linkFanHref}
+                unavailable={unavailableFans}
+              />
               <OrderSummaryCard
                 lines={[
                   { label: `${zone.short} × ${count}`, amount: zone.price * count },
@@ -213,14 +231,21 @@ export function StadiumSeatsPage(props: StadiumSeatsPageProps) {
           sticky
           aside={
             <>
-              <div
-                role="img"
-                aria-label={`View from block ${block.id} placeholder`}
-                className="flex h-[170px] flex-col justify-end gap-0.5 rounded-2xl bg-pitch p-4 text-white"
-              >
-                <span className="font-mono text-xs text-gold">[VIEW FROM BLOCK {block.id}]</span>
-                <span className="text-sm text-mint">Photo of the view from this block goes here</span>
-              </div>
+              <figure className="relative m-0 flex h-[170px] flex-col justify-end gap-0.5 overflow-hidden rounded-2xl bg-pitch p-4 text-white">
+                <svg aria-hidden="true" viewBox="0 0 320 170" preserveAspectRatio="none" className="absolute inset-0 size-full">
+                  <polygon points="40,60 280,60 320,170 0,170" fill="#2f7d4a" />
+                  <polygon points="40,60 280,60 320,170 0,170" fill="none" stroke="#e8f3ea" strokeWidth="2" opacity="0.7" />
+                  <line x1="160" y1="60" x2="160" y2="170" stroke="#e8f3ea" strokeWidth="2" opacity="0.7" />
+                  <ellipse cx="160" cy="112" rx="38" ry="16" fill="none" stroke="#e8f3ea" strokeWidth="2" opacity="0.7" />
+                  <rect x="0" y="0" width="320" height="60" fill="#121512" opacity="0.35" />
+                </svg>
+                <figcaption className="relative flex flex-col gap-0.5">
+                  <span className="font-mono text-xs font-semibold text-gold">VIEW FROM BLOCK {block.id}</span>
+                  <span className="text-sm text-white">
+                    {block.sideName} · {left} of {total} seats free
+                  </span>
+                </figcaption>
+              </figure>
               <PickedSeatsPanel
                 title="Your seats"
                 countLabel={`${picked.length} of ${maxSeats} · one per Fan ID`}

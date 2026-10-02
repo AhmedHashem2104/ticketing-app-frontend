@@ -13,11 +13,15 @@ import { useEvent, useNotify, usePresale } from "@/lib/queries";
 import { routes } from "@/lib/routes";
 import { PageLoading, QueryPage } from "./shared";
 
-function buyAction(event: EventDetail, waitingRoom: boolean) {
-  if (event.status === "coming_soon")
-    return { label: "Not on sale yet — browse others", href: routes.events(event.kind === "match" ? "matches" : "concerts") };
+function buyAction(event: EventDetail, waitingRoom: boolean, resale: boolean) {
+  const browse = routes.events(event.kind === "match" ? "matches" : "concerts");
+  if (event.status === "cancelled") return { label: "Cancelled — tickets refunded automatically", href: browse };
+  if (event.status === "postponed") return { label: "Postponed — new date to be announced", href: browse };
+  if (event.status === "coming_soon") return { label: "Not on sale yet — browse others", href: browse };
   if (event.status === "sold_out")
-    return { label: "Sold out — browse others", href: routes.events(event.kind === "match" ? "matches" : "concerts") };
+    return resale
+      ? { label: "Sold out — buy on official resale", href: routes.eventResale(event.slug) }
+      : { label: "Sold out — browse others", href: browse };
   if (event.queueEnabled && waitingRoom) return { label: "Join the waiting room", href: routes.queue(event.slug) };
   return { label: "Get tickets", href: routes.tickets(event.slug) };
 }
@@ -117,7 +121,7 @@ function MatchView({ event }: { event: EventDetail }) {
       buyBox={{
         saleOpensAt: event.queueEnabled && flags.waitingRoom ? event.saleOpensAt : undefined,
         priceFrom: event.priceFrom,
-        action: buyAction(event, flags.waitingRoom),
+        action: buyAction(event, flags.waitingRoom, flags.resale),
         reminder: flags.notifyMe ? reminder : undefined,
         onAddToCalendar: () => addToCalendar(event),
       }}
@@ -141,7 +145,7 @@ function ShowView({ event }: { event: EventDetail }) {
       buyBox={{
         priceFrom: event.priceFrom,
         scarcityNote: event.scarcityNote,
-        action: buyAction(event, flags.waitingRoom),
+        action: buyAction(event, flags.waitingRoom, flags.resale),
         footnote: event.priceNote,
         presale:
           flags.promoCodes && event.presaleCodeEnabled

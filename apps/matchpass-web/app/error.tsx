@@ -5,7 +5,18 @@ import { useEffect } from "react";
 
 export default function Error({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
-    console.error(error);
+    // Rendering errors caught here never reach window.onerror, so report them explicitly.
+    try {
+      const body = JSON.stringify({
+        type: "client-error",
+        message: error.message.slice(0, 1_000),
+        digest: error.digest,
+        path: window.location.pathname,
+      });
+      navigator.sendBeacon?.("/monitoring", new Blob([body], { type: "application/json" }));
+    } catch {
+      // Best effort.
+    }
   }, [error]);
   return (
     <main id="main" className="min-h-dvh bg-paper pt-10">

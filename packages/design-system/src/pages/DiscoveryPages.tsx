@@ -103,6 +103,8 @@ export const eventsPagePropsSchema = z.object({
   footer: zNode.optional(),
   tab: eventTabSchema,
   onTabChange: zFn<(tab: EventTab) => void>(),
+  /** Adds the Cinema tab (films and showtimes). */
+  showCinema: z.boolean().optional(),
   search: z.string(),
   onSearchChange: zFn<(value: string) => void>(),
   filters: eventFiltersSchema,
@@ -122,16 +124,30 @@ export type EventsPageProps = z.input<typeof eventsPagePropsSchema>;
 /** Page · Browse matches & concerts — tabs, search, filters and results. */
 export function EventsPage(props: EventsPageProps) {
   validateProps("EventsPage", eventsPagePropsSchema, props);
-  const { header, footer, tab, onTabChange, search, onSearchChange, filters, onFiltersChange, onClearFilters, facets, results, hrefFor } =
-    props;
+  const {
+    header,
+    footer,
+    tab,
+    onTabChange,
+    showCinema,
+    search,
+    onSearchChange,
+    filters,
+    onFiltersChange,
+    onClearFilters,
+    facets,
+    results,
+    hrefFor,
+  } = props;
   const isMatches = tab === "matches";
+  const title = { matches: "Matches", concerts: "Concerts & events", cinema: "Cinema" }[tab];
   return (
     <SiteLayout header={header} footer={footer}>
       <Container className="flex flex-col gap-6 pt-8">
         <div className="flex flex-wrap items-end justify-between gap-6">
           <div className="flex flex-col gap-3.5">
             <Heading as="h1" size="3xl">
-              {isMatches ? "Matches" : "Concerts & events"}
+              {title}
             </Heading>
             <SegmentedControl
               label="Event type"
@@ -140,6 +156,7 @@ export function EventsPage(props: EventsPageProps) {
               options={[
                 { value: "matches", label: "Matches" },
                 { value: "concerts", label: "Concerts & events" },
+                ...(showCinema ? [{ value: "cinema", label: "Cinema" }] : []),
               ]}
             />
           </div>
@@ -147,13 +164,13 @@ export function EventsPage(props: EventsPageProps) {
             label="Search events"
             value={search}
             onValueChange={onSearchChange}
-            placeholder={isMatches ? "Search teams, stadiums" : "Search artists, venues"}
+            placeholder={isMatches ? "Search teams, stadiums" : tab === "cinema" ? "Search films" : "Search artists, venues"}
             className="w-full sm:w-[380px]"
           />
         </div>
         <div className="flex flex-wrap items-start gap-6">
           <FiltersPanel
-            groupLabel={isMatches ? "COMPETITION" : "CATEGORY"}
+            groupLabel={isMatches ? "COMPETITION" : tab === "cinema" ? "GENRE" : "CATEGORY"}
             categories={facets.categories}
             cities={facets.cities}
             value={filters}

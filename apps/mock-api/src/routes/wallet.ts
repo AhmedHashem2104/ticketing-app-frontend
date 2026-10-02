@@ -17,7 +17,14 @@ import {
 } from "@repo/contracts";
 import { Router } from "express";
 import { z } from "zod";
-import { QR_PERIOD_SECONDS, type Store, type StoredListing, type StoredRefund, type StoredTicket, type StoredTransfer } from "../data/store";
+import {
+  QR_PERIOD_SECONDS,
+  type Store,
+  type StoredListing,
+  type StoredRefund,
+  type StoredTicket,
+  type StoredTransfer,
+} from "../data/store";
 import { addHours, dayLabel, shortDateLabel, timeLabel } from "../data/time";
 import { currentUser, requireAuth } from "../http/auth";
 import { HttpError, notFound } from "../http/errors";
@@ -75,7 +82,9 @@ export function walletRouter(store: Store) {
     [...store.transfers.values()].forEach((t) => store.refreshTransfer(t));
     const tickets = [...store.tickets.values()]
       .filter((t) => t.userId === user.id)
-      .filter((t) => (scope === "upcoming" ? UPCOMING.has(t.status) && !dayjs(t.startsAt).isBefore(cutoff) : dayjs(t.startsAt).isBefore(cutoff)))
+      .filter((t) =>
+        scope === "upcoming" ? UPCOMING.has(t.status) && !dayjs(t.startsAt).isBefore(cutoff) : dayjs(t.startsAt).isBefore(cutoff),
+      )
       .sort((a, b) => a.startsAt.localeCompare(b.startsAt) || a.position.index - b.position.index)
       .map((t) => store.publicTicket(t));
     res.json(tickets);
@@ -89,7 +98,8 @@ export function walletRouter(store: Store) {
 
   router.get("/tickets/:id/qr", (req, res) => {
     const ticket = store.publicTicket(ownedTicket(param(req, "id"), currentUser(res).id));
-    if (ticket.status !== "valid" && ticket.status !== "refund_pending") throw new HttpError("CONFLICT", "This ticket can't be used for entry");
+    if (ticket.status !== "valid" && ticket.status !== "refund_pending")
+      throw new HttpError("CONFLICT", "This ticket can't be used for entry");
     if (!ticket.qrReady) throw new HttpError("FORBIDDEN", ticket.qrUnlockLabel);
     const window = store.qrWindow();
     const expiresAt = dayjs.unix((window + 1) * QR_PERIOD_SECONDS);
@@ -122,7 +132,10 @@ export function walletRouter(store: Store) {
     if (ticket.status !== "valid") throw new HttpError("CONFLICT", "Only valid tickets can be transferred");
     const body = parseBody(transferRequestSchema, req);
     if (body.mode !== ticket.transferMode) {
-      throw new HttpError("VALIDATION_ERROR", ticket.transferMode === "fan_id" ? "Match tickets can only go to a Fan ID" : "Send this ticket to a phone number or email");
+      throw new HttpError(
+        "VALIDATION_ERROR",
+        ticket.transferMode === "fan_id" ? "Match tickets can only go to a Fan ID" : "Send this ticket to a phone number or email",
+      );
     }
     let recipientKey: string;
     let toUserId: string | undefined;
@@ -131,9 +144,13 @@ export function walletRouter(store: Store) {
       if (store.selfFanNumber(user) === body.recipient) throw new HttpError("VALIDATION_ERROR", "You can't transfer a ticket to yourself");
       const recipient = store.userByFanNumber(body.recipient);
       if (!recipient) {
-        throw new HttpError("VALIDATION_ERROR", "There's no approved Fan ID with this number", [{ path: "recipient", message: "No approved Fan ID with this number" }]);
+        throw new HttpError("VALIDATION_ERROR", "There's no approved Fan ID with this number", [
+          { path: "recipient", message: "No approved Fan ID with this number" },
+        ]);
       }
-      if (store.fanNumbersWithTickets(ticket.eventId).has(body.recipient)) {
+      // Moving a ticket to the Fan ID it's already tied to (e.g. to the holder's own account) is fine.
+      const stored = store.tickets.get(ticket.id)!;
+      if (stored.fanNumber !== body.recipient && store.fanNumbersWithTickets(ticket.eventId).has(body.recipient)) {
         throw new HttpError("LIMIT_EXCEEDED", "This fan already has a ticket for the match — one ticket per Fan ID");
       }
       recipientKey = body.recipient;
@@ -202,7 +219,8 @@ export function walletRouter(store: Store) {
     const original = store.tickets.get(transfer.ticketId)!;
     const isMatch = original.eventKind === "match";
     const fanNumber = isMatch ? store.selfFanNumber(user) : undefined;
-    if (isMatch && (!fanNumber || fanNumber !== transfer.recipientKey)) throw new HttpError("FAN_ID_REQUIRED", "This ticket was sent to a different Fan ID");
+    if (isMatch && (!fanNumber || fanNumber !== transfer.recipientKey))
+      throw new HttpError("FAN_ID_REQUIRED", "This ticket was sent to a different Fan ID");
     const holder = user.fans.find((f) => f.isSelf);
     // The original QR stops working; the recipient gets a freshly issued ticket.
     original.status = "transferred";
@@ -221,7 +239,12 @@ export function walletRouter(store: Store) {
     store.tickets.set(reissued.id, reissued);
     transfer.status = "accepted";
     transfer.toUserId = user.id;
-    store.notify(transfer.fromUserId, { kind: "transfer", title: "Your ticket transfer was accepted", body: `${transfer.eventTitle} · ${transfer.seatLabel}`, href: "/tickets" });
+    store.notify(transfer.fromUserId, {
+      kind: "transfer",
+      title: "Your ticket transfer was accepted",
+      body: `${transfer.eventTitle} · ${transfer.seatLabel}`,
+      href: "/tickets",
+    });
     res.json({ transfer: toTransfer(transfer, user.id), ticket: store.publicTicket(reissued) });
   });
 
@@ -232,7 +255,12 @@ export function walletRouter(store: Store) {
     transfer.status = "declined";
     const ticket = store.tickets.get(transfer.ticketId);
     if (ticket?.status === "transfer_pending") ticket.status = "valid";
-    store.notify(transfer.fromUserId, { kind: "transfer", title: "Your ticket transfer was declined", body: "The ticket is back in your account.", href: "/tickets" });
+    store.notify(transfer.fromUserId, {
+      kind: "transfer",
+      title: "Your ticket transfer was declined",
+      body: "The ticket is back in your account.",
+      href: "/tickets",
+    });
     res.json(toTransfer(transfer, user.id));
   });
 
@@ -426,7 +454,13 @@ export function gateRouter(store: Store) {
       if (!ticket) body = { valid: false, reason: "unknown_ticket" };
       else {
         const valid = ticket.status === "valid" || ticket.status === "refund_pending";
-        body = { valid, reason: valid ? "ok" : "not_valid", ticketCode: ticket.code, holderName: ticket.holderName, eventTitle: ticket.title };
+        body = {
+          valid,
+          reason: valid ? "ok" : "not_valid",
+          ticketCode: ticket.code,
+          holderName: ticket.holderName,
+          eventTitle: ticket.title,
+        };
       }
     }
     res.setHeader("Cache-Control", "no-store");
