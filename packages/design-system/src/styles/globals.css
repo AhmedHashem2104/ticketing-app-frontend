@@ -12,6 +12,13 @@
 @import "@fontsource/ibm-plex-mono/600.css";
 @import "@fontsource/unbounded/800.css";
 @import "@fontsource/unbounded/900.css";
+/* Arabic pages use Cairo (Arabic + Latin subsets, loaded on demand by unicode-range). */
+@import "@fontsource/cairo/400.css";
+@import "@fontsource/cairo/500.css";
+@import "@fontsource/cairo/600.css";
+@import "@fontsource/cairo/700.css";
+@import "@fontsource/cairo/800.css";
+@import "@fontsource/cairo/900.css";
 
 /* Let apps that import this stylesheet pick up the utility classes used by the components. */
 @source "../";
@@ -114,10 +121,10 @@
   --color-access: #1f4e8c;
 
   /* Type */
-  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Barlow Condensed", "Arial Narrow", ui-sans-serif, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
-  --font-ticket: "Unbounded", "Barlow Condensed", ui-sans-serif, sans-serif;
+  --font-sans: "IBM Plex Sans", "Cairo", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Barlow Condensed", "Cairo", "Arial Narrow", ui-sans-serif, sans-serif;
+  --font-mono: "IBM Plex Mono", "Cairo", ui-monospace, SFMono-Regular, monospace;
+  --font-ticket: "Unbounded", "Cairo", "Barlow Condensed", ui-sans-serif, sans-serif;
 
   --container-page: 1280px;
 }
@@ -149,4 +156,54 @@
       transition-duration: 0.01ms !important;
     }
   }
+}
+
+/*
+ * Arabic typography (pages under /ar, <html lang="ar-EG">).
+ *
+ * These rules are deliberately outside any @layer: Tailwind's utilities live in a layer, and unlayered
+ * CSS always wins over layered CSS, so the Arabic values reliably replace the Latin ones.
+ */
+
+/* Cairo for all text, so mixed Arabic/Latin lines share one face. Codes and prices stay monospaced. */
+:root:lang(ar) {
+  --font-sans: "Cairo", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Cairo", ui-sans-serif, sans-serif;
+  --font-ticket: "Cairo", ui-sans-serif, sans-serif;
+}
+
+/*
+ * Line height: Arabic letters are taller than Latin ones and carry dots and marks above and below the
+ * line, so the tight leading used for Latin display type (1, 0.95, 0.9) clips them and makes lines
+ * collide. Every leading step is opened up for Cairo.
+ */
+html:lang(ar) {
+  line-height: 1.75;
+}
+:lang(ar) .leading-normal {
+  line-height: 1.75;
+}
+:lang(ar) .leading-relaxed {
+  line-height: 1.9;
+}
+:lang(ar) .leading-snug {
+  line-height: 1.6;
+}
+:lang(ar) .leading-tight {
+  line-height: 1.45;
+}
+:lang(ar) .leading-none,
+:lang(ar) .leading-\[0\.95\],
+:lang(ar) .leading-\[0\.9\] {
+  line-height: 1.3;
+}
+/* Display headings without an explicit leading inherit the body's 1.75 — too airy for big type. */
+:lang(ar) :is(h1, h2, h3).font-display:not([class*="leading-"]),
+:lang(ar) :is(h1, h2, h3).font-ticket:not([class*="leading-"]) {
+  line-height: 1.35;
+}
+
+/* Arabic letters join, so letter-spacing would break words apart. */
+:lang(ar) [class*="tracking-"] {
+  letter-spacing: 0;
 }

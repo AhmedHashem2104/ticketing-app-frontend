@@ -14,6 +14,7 @@
     "./organisms": "./src/organisms/index.ts",
     "./templates": "./src/templates/index.ts",
     "./pages": "./src/pages/index.ts",
+    "./dashboard": "./src/dashboard/index.ts",
     "./components/ui/*": "./src/components/ui/*.tsx",
     "./lib/*": "./src/lib/*.ts",
     "./hooks/*": "./src/hooks/*.ts",
@@ -32,11 +33,13 @@
   },
   "dependencies": {
     "@fontsource/barlow-condensed": "5.3.0",
+    "@fontsource/cairo": "5.3.0",
     "@fontsource/ibm-plex-mono": "5.3.0",
     "@fontsource/ibm-plex-sans": "5.3.0",
     "@fontsource/unbounded": "5.3.0",
     "@hookform/resolvers": "5.9.1",
     "@repo/contracts": "workspace:*",
+    "@repo/i18n": "workspace:*",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
     "cn": "^0.4.0",
@@ -47,7 +50,8 @@
     "tailwind-merge": "3.7.0",
     "tw-animate-css": "1.4.0",
     "uqr": "0.1.3",
-    "zod": "4.6.5"
+    "zod": "4.6.5",
+    "zustand": "5.0.15"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="Egypt flag">
+  <defs><clipPath id="c"><circle cx="60" cy="60" r="56"/></clipPath></defs>
+  <g clip-path="url(#c)"><rect width="120" height="40" fill="#CE1126"/><rect y="40" width="120" height="40" fill="#fff"/><rect y="80" width="120" height="40" fill="#000"/>
+    <g fill="#C09300"><path d="M60 46 L66 52 L64 66 L60 72 L56 66 L54 52 Z"/><path d="M52 52 L44 50 L48 62 L56 64 Z"/><path d="M68 52 L76 50 L72 62 L64 64 Z"/><rect x="52" y="70" width="16" height="4" rx="1"/></g></g>
+  <circle cx="60" cy="60" r="56" fill="none" stroke="#fff" stroke-width="4"/>
+</svg>

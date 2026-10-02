@@ -1,11 +1,12 @@
 "use client";
 
-import { InfoPage, MessagePage } from "@repo/design-system";
+import { InfoPage, MessagePage, useI18n } from "@repo/design-system";
 import { AppFooter, AppHeader } from "@/components/app-chrome";
 import type { InfoPageContent } from "@/lib/content/info-pages";
 import { routes } from "@/lib/routes";
 
 export function InfoView({ page, slug }: { page: InfoPageContent; slug: string }) {
+  const { t } = useI18n();
   return (
     <InfoPage
       header={<AppHeader />}
@@ -15,20 +16,21 @@ export function InfoView({ page, slug }: { page: InfoPageContent; slug: string }
       intro={page.intro}
       updated={page.updated}
       sections={page.sections}
-      contact={slug === "contact" ? undefined : { label: "Contact support", href: "/info/contact" }}
+      contact={slug === "contact" ? undefined : { label: t("Contact support"), href: "/info/contact" }}
     />
   );
 }
 
 export function NotFoundView() {
+  const { t } = useI18n();
   return (
     <MessagePage
       header={<AppHeader />}
       footer={<AppFooter />}
       code="404"
-      title="Page not found"
-      body="The page you're looking for doesn't exist or isn't available right now."
-      action={{ label: "Go to the home page", href: routes.home }}
+      title={t("Page not found")}
+      body={t("The page you're looking for doesn't exist or isn't available right now.")}
+      action={{ label: t("Go to the home page"), href: routes.home }}
     />
   );
 }

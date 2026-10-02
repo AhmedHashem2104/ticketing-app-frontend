@@ -3,16 +3,17 @@ import { z } from "zod";
 import { LinkButton } from "../atoms/Button";
 import { Checkbox, Input } from "../atoms/FormControls";
 import { TeamCrest } from "../atoms/Identity";
+import { CoverImage } from "../atoms/Media";
 import { Skeleton } from "../atoms/Feedback";
 import { Eyebrow, Heading } from "../atoms/Typography";
 import { AppLink } from "../atoms/AppLink";
 import { EmptyState, ErrorState } from "../molecules/Content";
 import { ComingSoonRow, EventCard, EventRow } from "../molecules/Events";
-import { dayLabel, timeLabel } from "../lib/datetime";
 import { useCountdown } from "../lib/hooks";
 import { validateProps, zClassName, zFn, zHref, zNode } from "../lib/props";
 import { themeMuted, themeSurface } from "../lib/theme";
 import { cn } from "../lib/utils";
+import { useI18n } from "../lib/provider";
 
 const actionSchema = z.object({ label: z.string().min(1), href: zHref });
 
@@ -28,11 +29,17 @@ export const featuredEventCardPropsSchema = z.object({
 export type FeaturedEventCardProps = z.input<typeof featuredEventCardPropsSchema>;
 
 function SaleOpensIn({ at, className }: { at: string; className?: string }) {
+  const { t } = useI18n();
   const remaining = useCountdown(at);
   const d = Math.floor(remaining / 86_400);
   const h = String(Math.floor((remaining % 86_400) / 3600)).padStart(2, "0");
   const m = String(Math.floor((remaining % 3600) / 60)).padStart(2, "0");
-  return <span className={cn("font-mono text-sm", className)}>{remaining > 0 ? `Sale opens in ${d}d ${h}:${m}` : "Sale open now"}</span>;
+  // Server and browser read the clock a moment apart; the first tick after hydration corrects it.
+  return (
+    <span className={cn("font-mono text-sm", className)} suppressHydrationWarning>
+      {remaining > 0 ? t("Sale opens in {days}d {hours}:{minutes}", { days: d, hours: h, minutes: m }) : t("Sale open now")}
+    </span>
+  );
 }
 
 /** Organism · FeaturedEventCard — big hero card on the home page (match or show). */
@@ -41,20 +48,26 @@ export function FeaturedEventCard(props: FeaturedEventCardProps) {
   const { event, primaryAction, secondaryAction, className } = props;
   const isMatch = event.kind === "match" && event.homeTeam && event.awayTeam;
   const muted = themeMuted[event.theme];
+  const { t, f } = useI18n();
   return (
     <article
       aria-labelledby={`featured-${event.id}`}
-      className={cn("flex min-h-[380px] flex-col gap-[22px] rounded-2xl p-6 sm:p-9", themeSurface[event.theme], className)}
+      className={cn(
+        "relative isolate flex min-h-[380px] flex-col gap-[22px] overflow-hidden rounded-2xl p-6 sm:p-9",
+        themeSurface[event.theme],
+        className,
+      )}
     >
+      <CoverImage src={event.imageUrl} theme={event.theme} />
       <Eyebrow tone="gold">
         {event.tag}
-        {isMatch ? " · Derby" : event.kind === "concert" ? " · One night only" : ""}
+        {isMatch ? ` · ${t("Derby")}` : event.kind === "concert" ? ` · ${t("One night only")}` : ""}
       </Eyebrow>
       {isMatch ? (
         <h2 id={`featured-${event.id}`} aria-label={event.title} className="flex flex-col gap-2.5">
           {[event.homeTeam!, event.awayTeam!].map((team, i) => (
             <span key={team.short} className="flex items-center gap-4">
-              <TeamCrest short={team.short} variant={i === 0 ? "light" : "dark"} />
+              <TeamCrest short={team.short} src={team.logoUrl} variant={i === 0 ? "light" : "dark"} />
               <span className="font-display text-[40px] leading-none font-extrabold uppercase sm:text-[56px]">{team.name}</span>
             </span>
           ))}
@@ -72,8 +85,8 @@ export function FeaturedEventCard(props: FeaturedEventCardProps) {
         </div>
       )}
       <p className={cn("text-base", muted)}>
-        {dayLabel(event.startsAt)} · {event.doorsAt ? `Doors ${event.doorsAt}` : timeLabel(event.startsAt)} · {event.venue.name},{" "}
-        {event.venue.area}
+        {f.dayLabel(event.startsAt)} · {event.doorsAt ? t("Doors {time}", { time: event.doorsAt }) : f.timeLabel(event.startsAt)} ·{" "}
+        {event.venue.name}, {event.venue.area}
       </p>
       <div className="mt-auto flex flex-wrap items-center gap-4">
         <LinkButton href={primaryAction.href} variant="primary" size="xl">
@@ -108,7 +121,8 @@ export type EventGridProps = z.input<typeof eventGridPropsSchema>;
 /** Organism · EventGrid — titled grid of event cards. */
 export function EventGrid(props: EventGridProps) {
   validateProps("EventGrid", eventGridPropsSchema, props);
-  const { title, events, hrefFor, seeAll, emptyText = "No events in this category yet.", className } = props;
+  const { t } = useI18n();
+  const { title, events, hrefFor, seeAll, emptyText = t("No events in this category yet."), className } = props;
   return (
     <section aria-labelledby="event-grid-title" className={cn("flex flex-col gap-4", className)}>
       <div className="flex items-baseline justify-between gap-4">
@@ -117,7 +131,7 @@ export function EventGrid(props: EventGridProps) {
         </Heading>
         {seeAll ? (
           <AppLink href={seeAll.href} tone="pitch">
-            {seeAll.label} →
+            {seeAll.label} <span className="inline-block rtl:-scale-x-100">→</span>
           </AppLink>
         ) : null}
       </div>
@@ -152,13 +166,14 @@ export type ComingSoonListProps = z.input<typeof comingSoonListPropsSchema>;
 export function ComingSoonList(props: ComingSoonListProps) {
   validateProps("ComingSoonList", comingSoonListPropsSchema, props);
   const { events, notifiedIds, pendingId, onNotify, className } = props;
+  const { t } = useI18n();
   return (
     <section
       aria-labelledby="coming-soon-title"
       className={cn("flex flex-col gap-1 rounded-xl border border-line bg-white p-6", className)}
     >
       <Heading id="coming-soon-title" size="md" className="pb-2">
-        Coming soon
+        {t("Coming soon")}
       </Heading>
       {events.map((event) => (
         <ComingSoonRow
@@ -234,14 +249,15 @@ const toggle = <T,>(list: T[], item: T) => (list.includes(item) ? list.filter((x
 export function FiltersPanel(props: FiltersPanelProps) {
   validateProps("FiltersPanel", filtersPanelPropsSchema, props);
   const { groupLabel, categories, cities, value, onChange, onClear, className } = props;
+  const { t } = useI18n();
   const legend = "pb-2 font-mono text-xs text-muted-ink uppercase";
   const option = "flex min-h-8 cursor-pointer items-center gap-2.5 text-sm";
   return (
-    <aside aria-label="Filters" className={cn("flex flex-col gap-[18px] rounded-xl border border-line bg-white p-5", className)}>
+    <aside aria-label={t("Filters")} className={cn("flex flex-col gap-[18px] rounded-xl border border-line bg-white p-5", className)}>
       <div className="flex items-center justify-between">
-        <span className="text-base font-semibold">Filters</span>
+        <span className="text-base font-semibold">{t("Filters")}</span>
         <button type="button" onClick={onClear} className="min-h-11 text-sm font-semibold text-pitch hover:underline">
-          Clear
+          {t("Clear")}
         </button>
       </div>
       <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
@@ -252,32 +268,32 @@ export function FiltersPanel(props: FiltersPanelProps) {
               checked={value.categories.includes(category)}
               onCheckedChange={() => onChange({ ...value, categories: toggle(value.categories, category) })}
             />
-            {category}
+            {t(category)}
           </label>
         ))}
       </fieldset>
       <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
-        <legend className={legend}>City</legend>
+        <legend className={legend}>{t("City")}</legend>
         {cities.map((city) => (
           <label key={city} className={option}>
             <Checkbox
               checked={value.cities.includes(city)}
               onCheckedChange={() => onChange({ ...value, cities: toggle<City>(value.cities, city) })}
             />
-            {cityLabels[city]}
+            {t(cityLabels[city])}
           </label>
         ))}
       </fieldset>
       <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
-        <legend className={legend}>Date</legend>
+        <legend className={legend}>{t("Date")}</legend>
         <label className="flex flex-col gap-1.5 text-[13px] text-muted-ink">
-          From
+          {t("From")}
           <Input type="date" value={value.from ?? ""} onChange={(e) => onChange({ ...value, from: e.target.value || undefined })} />
         </label>
       </fieldset>
       <label className={cn(option, "border-t border-line pt-3.5")}>
         <Checkbox checked={value.availableOnly} onCheckedChange={(checked) => onChange({ ...value, availableOnly: checked })} />
-        Show available only
+        {t("Show available only")}
       </label>
     </aside>
   );
@@ -300,22 +316,23 @@ export type EventResultsProps = z.input<typeof eventResultsPropsSchema>;
 export function EventResults(props: EventResultsProps) {
   validateProps("EventResults", eventResultsPropsSchema, props);
   const { status, events, hrefFor, onRetry, emptyAction, className } = props;
+  const { t } = useI18n();
   return (
-    <section aria-label="Results" aria-busy={status === "loading"} className={cn("flex flex-col gap-2.5", className)}>
+    <section aria-label={t("Results")} aria-busy={status === "loading"} className={cn("flex flex-col gap-2.5", className)}>
       <p role="status" className="text-sm text-muted-ink">
         {status === "loading"
-          ? "Loading events…"
+          ? t("Loading events…")
           : status === "error"
             ? ""
-            : `${events.length} upcoming event${events.length === 1 ? "" : "s"}`}
+            : t("{count, plural, one {# upcoming event} other {# upcoming events}}", { count: events.length })}
       </p>
       {status === "loading" ? (
         Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-[100px]" rounded="xl" />)
       ) : status === "error" ? (
-        <ErrorState message="We couldn't load events. Check your connection and try again." onRetry={onRetry} />
+        <ErrorState message={t("We couldn't load events. Check your connection and try again.")} onRetry={onRetry} />
       ) : events.length === 0 ? (
-        <EmptyState title="No events match your filters" action={emptyAction}>
-          Try another city or date, or clear the filters.
+        <EmptyState title={t("No events match your filters")} action={emptyAction}>
+          {t("Try another city or date, or clear the filters.")}
         </EmptyState>
       ) : (
         <ul className="m-0 flex list-none flex-col gap-2.5 p-0">

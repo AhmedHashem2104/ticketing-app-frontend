@@ -37,6 +37,7 @@
         "QR_SECRET",
         "LOGIN_ATTEMPTS",
         "SITE_URL",
+        "WEB_ORIGIN",
         "ERROR_REPORTING_URL"
       ]
     },
@@ -58,6 +59,7 @@
         "QR_SECRET",
         "LOGIN_ATTEMPTS",
         "SITE_URL",
+        "WEB_ORIGIN",
         "ERROR_REPORTING_URL"
       ]
     }

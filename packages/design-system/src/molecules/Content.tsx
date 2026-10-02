@@ -1,15 +1,16 @@
 import { AlertCircle, CheckCircle2, Info, TriangleAlert } from "lucide-react";
 import { z } from "zod";
 import { Avatar } from "../atoms/Identity";
+import { Thumbnail } from "../atoms/Media";
 import { Badge, badgeToneValues } from "../atoms/Badge";
 import { Button } from "../atoms/Button";
 import { Spinner } from "../atoms/Feedback";
 import { Swatch, swatchPropsSchema } from "../atoms/Seat";
 import { Heading } from "../atoms/Typography";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "../components/ui/accordion";
-import { formatAmount, formatMoney } from "@repo/contracts";
 import { validateProps, zClassName, zFn, zNode } from "../lib/props";
 import { cn } from "../lib/utils";
+import { useI18n } from "../lib/provider";
 
 /* ---------- Card ---------- */
 
@@ -84,9 +85,9 @@ export type SummaryRowProps = z.input<typeof summaryRowPropsSchema>;
 export function SummaryRow(props: SummaryRowProps) {
   validateProps("SummaryRow", summaryRowPropsSchema, props);
   const { label, amount, variant = "line", format = "money", className } = props;
+  const { f } = useI18n();
   const text =
-    (amount < 0 ? "− " : variant === "bonus" ? "+" : "") +
-    (format === "money" ? formatMoney(Math.abs(amount)) : formatAmount(Math.abs(amount)));
+    (amount < 0 ? "− " : variant === "bonus" ? "+" : "") + (format === "money" ? f.money(Math.abs(amount)) : f.amount(Math.abs(amount)));
   if (variant === "total") {
     return (
       <div className={cn("flex items-baseline justify-between border-t border-line pt-2.5", className)}>
@@ -193,7 +194,8 @@ export type LegendProps = z.input<typeof legendPropsSchema>;
 /** Molecule · Legend — key for seat and zone maps. */
 export function Legend(props: LegendProps) {
   validateProps("Legend", legendPropsSchema, props);
-  const { items, label = "Map key", bordered, className } = props;
+  const { t } = useI18n();
+  const { items, label = t("Map key"), bordered, className } = props;
   return (
     <ul
       aria-label={label}
@@ -304,6 +306,7 @@ export function StatTile(props: StatTileProps) {
 
 export const holderRowPropsSchema = z.object({
   initials: z.string().min(1).max(3),
+  avatarUrl: z.string().min(1).optional(),
   name: z.string().min(1),
   detail: z.string().optional(),
   size: z.enum(["sm", "lg"]).optional(),
@@ -317,10 +320,10 @@ export type HolderRowProps = z.input<typeof holderRowPropsSchema>;
 /** Molecule · HolderRow — avatar, name and detail (ticket holders, account). */
 export function HolderRow(props: HolderRowProps) {
   validateProps("HolderRow", holderRowPropsSchema, props);
-  const { initials, name, detail, size = "sm", bordered, trailing, className } = props;
+  const { initials, avatarUrl, name, detail, size = "sm", bordered, trailing, className } = props;
   return (
     <div className={cn("flex items-center gap-3", bordered && "border-t border-line pt-2.5", className)}>
-      <Avatar initials={initials} size={size === "lg" ? "lg" : "sm"} />
+      <Avatar initials={initials} src={avatarUrl} size={size === "lg" ? "lg" : "sm"} />
       <span className="flex flex-1 flex-col">
         <span className={cn("font-semibold", size === "lg" ? "text-base" : "text-[15px]")}>{name}</span>
         {detail ? <span className="text-[13px] text-muted-ink">{detail}</span> : null}
@@ -335,6 +338,8 @@ export function HolderRow(props: HolderRowProps) {
 export const listingRowPropsSchema = z.object({
   title: z.string().min(1),
   detail: z.string().optional(),
+  /** Event photo shown as a thumbnail before the title. */
+  imageUrl: z.string().min(1).optional(),
   status: z.string().min(1),
   tone: z.enum(badgeToneValues),
   action: zNode.optional(),
@@ -346,10 +351,11 @@ export type ListingRowProps = z.input<typeof listingRowPropsSchema>;
 /** Molecule · ListingRow — title, detail and status pill (resale listings). */
 export function ListingRow(props: ListingRowProps) {
   validateProps("ListingRow", listingRowPropsSchema, props);
-  const { title, detail, status, tone, action, className } = props;
+  const { title, detail, imageUrl, status, tone, action, className } = props;
   return (
     <div className={cn("flex items-center justify-between gap-3 border-t border-line pt-2.5", className)}>
-      <span className="flex flex-col">
+      {imageUrl ? <Thumbnail src={imageUrl} size="sm" /> : null}
+      <span className="flex flex-1 flex-col">
         <span className="text-[15px] font-semibold">{title}</span>
         {detail ? <span className="text-[13px] text-muted-ink">{detail}</span> : null}
       </span>
@@ -400,7 +406,8 @@ export type ErrorStateProps = z.input<typeof errorStatePropsSchema>;
 /** Molecule · ErrorState — failure message with retry. */
 export function ErrorState(props: ErrorStateProps) {
   validateProps("ErrorState", errorStatePropsSchema, props);
-  const { title = "Something went wrong", message, onRetry, className } = props;
+  const { t } = useI18n();
+  const { title = t("Something went wrong"), message, onRetry, className } = props;
   return (
     <div
       role="alert"
@@ -408,10 +415,10 @@ export function ErrorState(props: ErrorStateProps) {
     >
       <AlertCircle className="size-8 text-rose-ink" aria-hidden="true" />
       <p className="font-semibold">{title}</p>
-      <p className="max-w-md text-sm text-muted-ink">{message}</p>
+      <p className="max-w-md text-sm text-muted-ink">{t(message)}</p>
       {onRetry ? (
         <Button variant="outline" onClick={onRetry} className="mt-2">
-          Try again
+          {t("Try again")}
         </Button>
       ) : null}
     </div>
@@ -424,7 +431,8 @@ export type LoadingStateProps = z.input<typeof loadingStatePropsSchema>;
 /** Molecule · LoadingState — centred spinner block. */
 export function LoadingState(props: LoadingStateProps) {
   validateProps("LoadingState", loadingStatePropsSchema, props);
-  const { label = "Loading", className } = props;
+  const { t } = useI18n();
+  const { label = t("Loading"), className } = props;
   return (
     <div className={cn("flex min-h-[240px] items-center justify-center", className)}>
       <Spinner size="lg" label={label} />

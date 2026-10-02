@@ -1,11 +1,14 @@
 import { z } from "zod";
 import { cn } from "../lib/utils";
 import { validateProps, zClassName } from "../lib/props";
+import { useImageFallback } from "./Media";
 
 /* ---------- Avatar ---------- */
 
 export const avatarPropsSchema = z.object({
   initials: z.string().trim().min(1).max(3),
+  /** Profile photo; the initials show while it's missing or if it fails to load. */
+  src: z.string().min(1).optional(),
   size: z.enum(["sm", "md", "lg"]).optional(),
   label: z.string().min(1).optional(),
   className: zClassName,
@@ -15,22 +18,26 @@ export type AvatarProps = z.input<typeof avatarPropsSchema>;
 
 const avatarSizes = { sm: "size-9 text-[13px]", md: "size-11 text-base", lg: "size-12 text-base" } as const;
 
-/** Atom · Avatar — initials disc. Decorative unless a `label` is given. */
+/** Atom · Avatar — profile photo or initials disc. Decorative unless a `label` is given. */
 export function Avatar(props: AvatarProps) {
   validateProps("Avatar", avatarPropsSchema, props);
-  const { initials, size = "sm", label, className } = props;
+  const { initials, src, size = "sm", label, className } = props;
+  const photo = useImageFallback(src);
   return (
     <span
       role={label ? "img" : undefined}
       aria-label={label}
       aria-hidden={label ? undefined : true}
       className={cn(
-        "inline-flex shrink-0 items-center justify-center rounded-full bg-mint font-semibold text-pitch",
+        "relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-mint font-semibold text-pitch",
         avatarSizes[size],
         className,
       )}
     >
       {initials.toUpperCase()}
+      {photo.visible ? (
+        <img src={src} alt="" loading="lazy" decoding="async" onError={photo.onError} className="absolute inset-0 size-full object-cover" />
+      ) : null}
     </span>
   );
 }
@@ -79,6 +86,8 @@ export function Logo(props: LogoProps) {
 
 export const teamCrestPropsSchema = z.object({
   short: z.string().trim().min(2).max(4),
+  /** Crest or flag image; the lettered disc shows while it's missing or if it fails to load. */
+  src: z.string().min(1).optional(),
   variant: z.enum(["light", "dark"]).optional(),
   size: z.enum(["sm", "lg"]).optional(),
   className: zClassName,
@@ -86,10 +95,22 @@ export const teamCrestPropsSchema = z.object({
 
 export type TeamCrestProps = z.input<typeof teamCrestPropsSchema>;
 
-/** Atom · TeamCrest — circular club badge placeholder (decorative; the team name is always shown alongside). */
+/** Atom · TeamCrest — club crest, or a lettered badge without one (decorative; the team name is always shown alongside). */
 export function TeamCrest(props: TeamCrestProps) {
   validateProps("TeamCrest", teamCrestPropsSchema, props);
-  const { short, variant = "light", size = "sm", className } = props;
+  const { short, src, variant = "light", size = "sm", className } = props;
+  const crest = useImageFallback(src);
+  if (crest.visible)
+    return (
+      <img
+        src={src}
+        alt=""
+        aria-hidden="true"
+        decoding="async"
+        onError={crest.onError}
+        className={cn("shrink-0 object-contain drop-shadow-md", size === "lg" ? "size-[88px]" : "size-14", className)}
+      />
+    );
   return (
     <span
       aria-hidden="true"

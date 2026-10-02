@@ -5,15 +5,15 @@ import {
   ArenaTicketsPage,
   bestTogether,
   CinemaSeatsPage,
-  dateTimeLabel,
   EventBanner,
   HallSeatsPage,
   MessagePage,
   StadiumSeatsPage,
   toggleSeat,
+  useI18n,
   ZoneSelectionPage,
 } from "@repo/design-system";
-import { useRouter } from "next/navigation";
+import type { Formatters } from "@repo/i18n";
 import { useMemo, useState } from "react";
 import { AppFooter, AppHeader } from "@/components/app-chrome";
 import { errorMessage } from "@/lib/api/client";
@@ -23,10 +23,11 @@ import { useCinemaSeats, useCreateHold, useEvent, useSeatMap, useUnavailableFans
 import { routes } from "@/lib/routes";
 import { turnKey } from "./queue-view";
 import { QueryPage } from "./shared";
+import { useLocalizedRouter } from "@/lib/i18n/navigation";
 
 /** Shared hold → checkout handoff for every ticket picker. */
 function useCheckout() {
-  const router = useRouter();
+  const router = useLocalizedRouter();
   const createHold = useCreateHold();
   return {
     submitting: createHold.isPending,
@@ -35,15 +36,16 @@ function useCheckout() {
   };
 }
 
-const eventMeta = (event: EventDetail) =>
-  `${dateTimeLabel(event.startsAt)} · ${event.venue.name}${event.kind === "match" ? "" : `, ${event.venue.area}`}`;
+const eventMeta = (event: EventDetail, f: Formatters) =>
+  `${f.dateTimeLabel(event.startsAt)} · ${event.venue.name}${event.kind === "match" ? "" : `, ${event.venue.area}`}`;
 
 export function PurchaseView({ slug }: { slug: string }) {
   const event = useEvent(slug);
+  const { t } = useI18n();
   return (
     <RequireAuth>
       {(user) => (
-        <QueryPage query={event} loadingLabel="Loading tickets">
+        <QueryPage query={event} loadingLabel={t("Loading tickets")}>
           {(data) => <Picker event={data} user={user} />}
         </QueryPage>
       )}
@@ -55,19 +57,20 @@ function Picker({ event, user }: { event: EventDetail; user: User }) {
   const onSale = event.status !== "coming_soon" && event.status !== "sold_out";
   const seatMap = useSeatMap(event.slug, onSale);
   const active = event.kind === "match" ? "matches" : event.kind === "cinema" ? "cinema" : "concerts";
+  const { t } = useI18n();
 
   if (!onSale) {
     return (
       <MessagePage
         header={<AppHeader active={active} />}
         footer={<AppFooter />}
-        title={event.status === "sold_out" ? "Sold out" : "Not on sale yet"}
+        title={event.status === "sold_out" ? t("Sold out") : t("Not on sale yet")}
         body={
           event.status === "sold_out"
-            ? "Every ticket for this event has been sold."
-            : "Tickets for this event aren't on sale yet. Set a reminder on the event page."
+            ? t("Every ticket for this event has been sold.")
+            : t("Tickets for this event aren't on sale yet. Set a reminder on the event page.")
         }
-        action={{ label: "Back to the event", href: routes.event(event.slug) }}
+        action={{ label: t("Back to the event"), href: routes.event(event.slug) }}
       />
     );
   }
@@ -76,14 +79,14 @@ function Picker({ event, user }: { event: EventDetail; user: User }) {
       <MessagePage
         header={<AppHeader active={active} />}
         footer={<AppFooter />}
-        title="You need a Fan ID"
-        body="Every match ticket is tied to an approved Fan ID. It takes about five minutes."
-        action={{ label: "Get your Fan ID", href: routes.fanId }}
+        title={t("You need a Fan ID")}
+        body={t("Every match ticket is tied to an approved Fan ID. It takes about five minutes.")}
+        action={{ label: t("Get your Fan ID"), href: routes.fanId }}
       />
     );
   }
   return (
-    <QueryPage query={seatMap} active={active} loadingLabel="Loading the venue map">
+    <QueryPage query={seatMap} active={active} loadingLabel={t("Loading the venue map")}>
       {(map) =>
         map.layout === "stadium" ? (
           <ZonePickerView event={event} user={user} map={map} />
@@ -102,6 +105,7 @@ function Picker({ event, user }: { event: EventDetail; user: User }) {
 function ZonePickerView({ event, user, map }: { event: EventDetail; user: User; map: StadiumSeatMap }) {
   const flags = useFeatureFlags();
   const checkout = useCheckout();
+  const { f } = useI18n();
   const self = user.linkedFans.find((f) => f.isSelf && f.status === "approved");
   const eligibility = useUnavailableFans(event.slug, true);
   const [zoneId, setZoneId] = useState("cat1");
@@ -117,7 +121,8 @@ function ZonePickerView({ event, user, map }: { event: EventDetail; user: User; 
       header={<AppHeader active="matches" />}
       contextBar={{
         title: event.title,
-        meta: eventMeta(event),
+        meta: eventMeta(event, f),
+        imageUrl: event.imageUrl,
         expiresAt: turnEndsAt && new Date(turnEndsAt) > new Date() ? turnEndsAt : undefined,
       }}
       zones={map.zones}
@@ -144,10 +149,11 @@ function ArenaView({ event, map }: { event: EventDetail; map: ArenaSeatMap }) {
   const checkout = useCheckout();
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [focusedId, setFocusedId] = useState(map.ticketTypes[0]?.id);
+  const { f } = useI18n();
   return (
     <ArenaTicketsPage
       header={<AppHeader active="concerts" />}
-      contextBar={{ title: event.title, meta: eventMeta(event) }}
+      contextBar={{ title: event.title, meta: eventMeta(event, f), imageUrl: event.imageUrl }}
       ticketTypes={map.ticketTypes}
       note={map.note}
       quantities={quantities}
@@ -177,16 +183,25 @@ function HallView({ event, map }: { event: EventDetail; map: HallSeatMap }) {
   const [selected, setSelected] = useState<string[]>([]);
   const [message, setMessage] = useState<string>();
   const [tierFilter, setTierFilter] = useState("all");
+  const { t, f } = useI18n();
   return (
     <HallSeatsPage
       header={<AppHeader active="concerts" />}
-      banner={<EventBanner eyebrow={event.tag.toUpperCase()} title={event.title} meta={eventMeta(event)} theme={event.theme} />}
+      banner={
+        <EventBanner
+          eyebrow={event.tag.toUpperCase()}
+          title={event.title}
+          meta={eventMeta(event, f)}
+          theme={event.theme}
+          imageUrl={event.imageUrl}
+        />
+      }
       map={map}
       tierFilter={tierFilter}
       onTierFilterChange={setTierFilter}
       selected={selected}
       onToggleSeat={(id) => {
-        const next = toggleSeat(selected, id, event.maxPerOrder, `Up to ${event.maxPerOrder} seats per order.`);
+        const next = toggleSeat(selected, id, event.maxPerOrder, t("Up to {max} seats per order.", { max: event.maxPerOrder }));
         setSelected(next.selected);
         setMessage(next.message);
       }}
@@ -209,6 +224,7 @@ function CinemaView({ event, map }: { event: EventDetail; map: CinemaSeatMap }) 
   const [message, setMessage] = useState<string>();
   const seats = useCinemaSeats(event.slug, showtimeId);
   const showtime = useMemo(() => map.showtimes.find((s) => s.id === showtimeId)!, [map, showtimeId]);
+  const { t } = useI18n();
   return (
     <CinemaSeatsPage
       header={<AppHeader active="cinema" />}
@@ -218,6 +234,7 @@ function CinemaView({ event, map }: { event: EventDetail; map: CinemaSeatMap }) 
           title={event.title}
           meta={`${event.venue.name}, ${event.venue.area} · ${map.screen}`}
           theme="ink"
+          imageUrl={event.imageUrl}
           poster
         />
       }
@@ -232,7 +249,7 @@ function CinemaView({ event, map }: { event: EventDetail; map: CinemaSeatMap }) 
       seatsError={errorMessage(seats.error)}
       selected={selected}
       onToggleSeat={(id) => {
-        const next = toggleSeat(selected, id, event.maxPerOrder, `Up to ${event.maxPerOrder} seats per booking.`);
+        const next = toggleSeat(selected, id, event.maxPerOrder, t("Up to {max} seats per booking.", { max: event.maxPerOrder }));
         setSelected(next.selected);
         setMessage(next.message);
       }}
@@ -253,10 +270,11 @@ function CinemaView({ event, map }: { event: EventDetail; map: CinemaSeatMap }) 
 
 export function StadiumSeatsView({ slug }: { slug: string }) {
   const event = useEvent(slug);
+  const { t } = useI18n();
   return (
     <RequireAuth>
       {(user) => (
-        <QueryPage query={event} loadingLabel="Loading seats">
+        <QueryPage query={event} loadingLabel={t("Loading seats")}>
           {(data) => <StadiumSeatsLoader event={data} user={user} />}
         </QueryPage>
       )}
@@ -266,17 +284,18 @@ export function StadiumSeatsView({ slug }: { slug: string }) {
 
 function StadiumSeatsLoader({ event, user }: { event: EventDetail; user: User }) {
   const seatMap = useSeatMap(event.slug);
+  const { t } = useI18n();
   return (
-    <QueryPage query={seatMap} active="matches" loadingLabel="Loading the stadium map">
+    <QueryPage query={seatMap} active="matches" loadingLabel={t("Loading the stadium map")}>
       {(map) =>
         map.layout === "stadium" ? (
           <StadiumSeats event={event} user={user} map={map} />
         ) : (
           <MessagePage
             header={<AppHeader />}
-            title="Seat picking isn't available"
-            body="This venue sells tickets by type."
-            action={{ label: "Choose tickets", href: routes.tickets(event.slug) }}
+            title={t("Seat picking isn't available")}
+            body={t("This venue sells tickets by type.")}
+            action={{ label: t("Choose tickets"), href: routes.tickets(event.slug) }}
           />
         )
       }
@@ -295,6 +314,7 @@ function StadiumSeats({ event, user, map }: { event: EventDetail; user: User; ma
   const [selected, setSelected] = useState<string[]>([]);
   const [message, setMessage] = useState<string>();
   const block = map.blocks.find((b) => b.id === blockId)!;
+  const { t, f } = useI18n();
   const apply = (next: { selected: string[]; message?: string }) => {
     setSelected(next.selected);
     setMessage(next.message);
@@ -302,7 +322,15 @@ function StadiumSeats({ event, user, map }: { event: EventDetail; user: User; ma
   return (
     <StadiumSeatsPage
       header={<AppHeader active="matches" />}
-      banner={<EventBanner eyebrow={event.tag.toUpperCase()} title={event.title} meta={eventMeta(event)} theme={event.theme} />}
+      banner={
+        <EventBanner
+          eyebrow={event.tag.toUpperCase()}
+          title={event.title}
+          meta={eventMeta(event, f)}
+          theme={event.theme}
+          imageUrl={event.imageUrl}
+        />
+      }
       blocks={map.blocks}
       blockId={blockId}
       onBlockChange={(id) => {
@@ -311,9 +339,11 @@ function StadiumSeats({ event, user, map }: { event: EventDetail; user: User; ma
       }}
       selected={selected}
       onToggleSeat={(id) =>
-        apply(toggleSeat(selected, id, maxSeats, `You can pick up to ${maxSeats} seats — one for each Fan ID on your order.`))
+        apply(
+          toggleSeat(selected, id, maxSeats, t("You can pick up to {max} seats — one for each Fan ID on your order.", { max: maxSeats })),
+        )
       }
-      onBestTogether={() => apply(bestTogether(block, selected, 2, maxSeats))}
+      onBestTogether={() => apply(bestTogether(block, selected, 2, maxSeats, { t }))}
       maxSeats={maxSeats}
       serviceFee={event.serviceFee}
       panel={{ message, onRemove: (id) => setSelected((s) => s.filter((x) => x !== id)) }}

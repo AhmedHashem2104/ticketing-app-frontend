@@ -24,11 +24,13 @@ import {
   type StoredUser,
   type TicketSpec,
 } from "../data/store";
+import { withAvatar } from "../data/media";
 import { addHours, addMinutes, addSeconds, dayLabel, timeLabel } from "../data/time";
 import { currentUser, requireAuth } from "../http/auth";
 import { HttpError, notFound } from "../http/errors";
 import { param, parseBody } from "../http/validate";
-import { hostedPaymentPage } from "./hosted-payment-page";
+import { hostedPaymentPage, testCardValues, TEST_CARDS, type TestCard } from "./hosted-payment-page";
+import type { Locale } from "@repo/i18n";
 
 export const PROMO_CODES: Record<string, { label: string; oncePerUser: boolean; apply: (subtotal: number) => number }> = {
   MATCHPASS10: { label: "MATCHPASS10 · 10% off tickets", oncePerUser: false, apply: (subtotal) => Math.round(subtotal * 0.1) },
@@ -335,14 +337,26 @@ function toPublicHold(hold: StoredHold): Hold {
 
 const maskWallet = (phone: string) => `•••• ${phone.slice(-3)}`;
 
-function paymentPlan(store: Store, config: AppConfig, order: Pick<StoredOrder, "id">, payment: PaymentDetailsParsed, hold: StoredHold) {
+function paymentPlan(
+  store: Store,
+  config: AppConfig,
+  order: Pick<StoredOrder, "id">,
+  payment: PaymentDetailsParsed,
+  hold: StoredHold,
+  locale: Locale = "en",
+) {
   const now = store.now();
   switch (payment.method) {
     case "card": {
       const session = store.token();
       store.paymentSessions.set(session, order.id);
       return {
-        payment: { method: "card" as const, redirectUrl: `/api/payments/${session}`, expiresAt: hold.expiresAt },
+        // The provider's page opens in the fan's language.
+        payment: {
+          method: "card" as const,
+          redirectUrl: `/api/payments/${session}${locale === "en" ? "" : `?lang=${locale}`}`,
+          expiresAt: hold.expiresAt,
+        },
         paymentLabel: "Card payment",
       };
     }
@@ -439,6 +453,7 @@ export function checkoutRouter(store: Store, config: AppConfig) {
       eventMeta: `${dayLabel(event.startsAt)} · ${isMatch ? timeLabel(event.startsAt) : `Doors ${event.doorsAt ?? timeLabel(event.startsAt)}`} · ${event.venue.name}`,
       eventKind: event.kind,
       theme: event.theme,
+      ...(event.imageUrl ? { imageUrl: event.imageUrl } : {}),
       expiresAt: addMinutes(store.now(), config.holdMinutes).toISOString(),
       lines: [...draft.lines, { label: `Service fee × ${ticketCount}`, quantity: ticketCount, unitPrice: event.serviceFee, amount: fees }],
       seats: draft.seats,
@@ -456,11 +471,13 @@ export function checkoutRouter(store: Store, config: AppConfig) {
               .join("")
               .slice(0, 2),
             name: s.holderName,
+            ...withAvatar(s.holderName),
             detail: s.holderDetail.split(" · ")[0] ?? "",
           }))
         : [
             {
               initials: user.initials,
+              ...(user.avatarUrl ? { avatarUrl: user.avatarUrl } : {}),
               name: cleanName(draft.specs[0]?.holderName ?? user.fullName),
               detail: `App${user.email ? ` + email ${user.email[0]}••••@${user.email.split("@")[1]}` : ""}`,
             },
@@ -521,7 +538,7 @@ export function checkoutRouter(store: Store, config: AppConfig) {
       throw new HttpError("SEAT_UNAVAILABLE", "Some of your seats were just taken. Choose again.");
 
     const orderId = store.id("ord");
-    const plan = paymentPlan(store, config, { id: orderId }, body.payment, hold);
+    const plan = paymentPlan(store, config, { id: orderId }, body.payment, hold, res.locals.locale as Locale);
     const isMatch = event.kind === "match";
     const gate = hold.ticketSpecs[0]?.fields.find((f) => f.key === "Gate")?.value;
     const order: StoredOrder = {
@@ -539,6 +556,7 @@ export function checkoutRouter(store: Store, config: AppConfig) {
       eventMeta: hold.eventMeta,
       eventKind: event.kind,
       theme: event.theme,
+      ...(event.imageUrl ? { imageUrl: event.imageUrl } : {}),
       entryNote: isMatch
         ? `Gates open ${event.gatesOpenAt ?? ""}${gate ? ` · Use Gate ${gate}` : ""}`
         : `Doors open ${event.doorsAt ?? timeLabel(event.startsAt)}`,
@@ -595,7 +613,18 @@ export function checkoutRouter(store: Store, config: AppConfig) {
       res.redirect(303, order.status === "paid" ? `/orders/${order.id}` : `/checkout/${order.holdId}?payment=expired`);
       return;
     }
-    res.type("html").send(hostedPaymentPage({ action: `/api/payments/${param(req, "session")}`, order }));
+    const devAutofill = config.env !== "production";
+    const requested = req.query.autofill;
+    const autofill = devAutofill && typeof requested === "string" && requested in TEST_CARDS ? (requested as TestCard) : undefined;
+    res.type("html").send(
+      hostedPaymentPage({
+        action: `/api/payments/${param(req, "session")}`,
+        order,
+        devAutofill,
+        locale: res.locals.locale as Locale,
+        ...(autofill ? { values: testCardValues(autofill, store.now()) } : {}),
+      }),
+    );
   });
 
   router.post("/payments/:session", express.urlencoded({ extended: false, limit: "10kb" }), (req, res) => {
@@ -623,6 +652,8 @@ export function checkoutRouter(store: Store, config: AppConfig) {
             order,
             errors,
             values: { nameOnCard: String(req.body?.nameOnCard ?? "") },
+            devAutofill: config.env !== "production",
+            locale: res.locals.locale as Locale,
           }),
         );
       return;

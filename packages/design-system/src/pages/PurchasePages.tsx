@@ -2,7 +2,6 @@ import {
   cinemaSeatsSchema,
   eventSummarySchema,
   fanSchema,
-  formatMoney,
   hallSeatMapSchema,
   holdSchema,
   orderSchema,
@@ -43,10 +42,10 @@ import {
   ZonePicker,
   ZoneSummaryCard,
 } from "../organisms/Seating";
-import { dateTimeLabel } from "../lib/datetime";
 import { cinemaPicked, cinemaSeatGroups, hallPicked, hallSeatGroups, stadiumPicked, stadiumSeatGroups } from "../lib/seating";
 import { validateProps, zFn, zHref, zNode } from "../lib/props";
 import { Container, SiteLayout, TwoColumn } from "../templates/Layouts";
+import { useI18n } from "../lib/provider";
 
 const ctaSchema = z.object({ onContinue: zFn<() => void>(), submitting: z.boolean().optional(), error: z.string().optional() });
 const contextBarSchema = eventContextBarPropsSchema.omit({ className: true, step: true });
@@ -71,10 +70,11 @@ export type WaitingRoomPageProps = z.input<typeof waitingRoomPagePropsSchema>;
 export function WaitingRoomPage(props: WaitingRoomPageProps) {
   validateProps("WaitingRoomPage", waitingRoomPagePropsSchema, props);
   const { event, status, error, onRetry, chooseHref, leaveHref, maskedPhone, onSmsChange, readyNote } = props;
+  const { t, f } = useI18n();
   return (
     <SiteLayout
       tone="pitch"
-      header={<MinimalHeader tone="dark" trailing={<span className="text-sm text-mint">Official waiting room</span>} />}
+      header={<MinimalHeader tone="dark" trailing={<span className="text-sm text-mint">{t("Official waiting room")}</span>} />}
     >
       <Container width="focus" className="flex flex-col gap-5 pt-10">
         <div className="flex flex-col gap-1.5 text-center text-white">
@@ -83,11 +83,11 @@ export function WaitingRoomPage(props: WaitingRoomPageProps) {
             {event.title}
           </Heading>
           <p className="text-base text-mint">
-            {dateTimeLabel(event.startsAt)} · {event.venue.name}
+            {f.dateTimeLabel(event.startsAt)} · {event.venue.name}
           </p>
         </div>
         {error ? (
-          <ErrorState message={error} onRetry={onRetry} />
+          <ErrorState message={t(error)} onRetry={onRetry} />
         ) : status ? (
           <WaitingRoomPanel
             status={status}
@@ -98,11 +98,11 @@ export function WaitingRoomPage(props: WaitingRoomPageProps) {
           />
         ) : (
           <div className="rounded-2xl bg-white">
-            <LoadingState label="Joining the waiting room" />
+            <LoadingState label={t("Joining the waiting room")} />
           </div>
         )}
         <AppLink href={leaveHref} tone="inverse" underline className="flex min-h-11 items-center self-center text-[15px]">
-          Leave the waiting room
+          {t("Leave the waiting room")}
         </AppLink>
       </Container>
     </SiteLayout>
@@ -152,12 +152,13 @@ export function ZoneSelectionPage(props: ZoneSelectionPageProps) {
   } = props;
   const zone = zones.find((z) => z.id === zoneId) ?? zones[0]!;
   const count = fanIds.length;
+  const { t } = useI18n();
   return (
     <SiteLayout header={header}>
       <EventContextBar {...contextBar} step={1} />
       <Container className="pt-7">
         <TwoColumn
-          asideLabel="Your order"
+          asideLabel={t("Your order")}
           sticky={false}
           aside={
             <>
@@ -173,11 +174,11 @@ export function ZoneSelectionPage(props: ZoneSelectionPageProps) {
               <OrderSummaryCard
                 lines={[
                   { label: `${zone.short} × ${count}`, amount: zone.price * count },
-                  { label: `Service fee × ${count}`, amount: serviceFee * count },
+                  { label: t("Service fee × {count}", { count }), amount: serviceFee * count },
                 ]}
                 total={(zone.price + serviceFee) * count}
                 error={cta.error}
-                cta={{ label: "Continue to payment", onClick: cta.onContinue, loading: cta.submitting, disabled: count === 0 }}
+                cta={{ label: t("Continue to payment"), onClick: cta.onContinue, loading: cta.submitting, disabled: count === 0 }}
               />
             </>
           }
@@ -215,10 +216,11 @@ export type StadiumSeatsPageProps = z.input<typeof stadiumSeatsPagePropsSchema>;
 /** Page · Stadium block & exact seats. */
 export function StadiumSeatsPage(props: StadiumSeatsPageProps) {
   validateProps("StadiumSeatsPage", stadiumSeatsPagePropsSchema, props);
+  const { t, f } = useI18n();
   const { header, banner, blocks, blockId, onBlockChange, selected, onToggleSeat, onBestTogether, maxSeats, serviceFee, panel, cta } =
     props;
   const block = blocks.find((b) => b.id === blockId) ?? blocks[0]!;
-  const picked = stadiumPicked(blocks, selected);
+  const picked = stadiumPicked(blocks, selected, { t, f });
   const subtotal = picked.reduce((sum, p) => sum + p.price, 0);
   const left = block.rows.reduce((n, r) => n + r.seats.replace(/x/g, "").length, 0);
   const total = block.rows.reduce((n, r) => n + r.seats.length, 0);
@@ -227,7 +229,7 @@ export function StadiumSeatsPage(props: StadiumSeatsPageProps) {
       {banner}
       <Container className="pt-7">
         <TwoColumn
-          asideLabel="Your seats"
+          asideLabel={t("Your seats")}
           sticky
           aside={
             <>
@@ -240,23 +242,23 @@ export function StadiumSeatsPage(props: StadiumSeatsPageProps) {
                   <rect x="0" y="0" width="320" height="60" fill="#121512" opacity="0.35" />
                 </svg>
                 <figcaption className="relative flex flex-col gap-0.5">
-                  <span className="font-mono text-xs font-semibold text-gold">VIEW FROM BLOCK {block.id}</span>
+                  <span className="font-mono text-xs font-semibold text-gold">{t("VIEW FROM BLOCK {block}", { block: block.id })}</span>
                   <span className="text-sm text-white">
-                    {block.sideName} · {left} of {total} seats free
+                    {block.sideName} · {t("{left} of {total} seats free", { left, total })}
                   </span>
                 </figcaption>
               </figure>
               <PickedSeatsPanel
-                title="Your seats"
-                countLabel={`${picked.length} of ${maxSeats} · one per Fan ID`}
-                emptyText="No seats yet. Choose a block on the map, then tap green seats."
+                title={t("Your seats")}
+                countLabel={t("{count} of {max} · one per Fan ID", { count: picked.length, max: maxSeats })}
+                emptyText={t("No seats yet. Choose a block on the map, then tap green seats.")}
                 seats={picked}
                 onRemove={panel.onRemove}
                 message={panel.message ?? cta.error}
                 fees={serviceFee * picked.length}
                 total={subtotal + serviceFee * picked.length}
                 showSwatch
-                cta={{ label: "Continue", onClick: cta.onContinue, loading: cta.submitting, disabled: picked.length === 0 }}
+                cta={{ label: t("Continue"), onClick: cta.onContinue, loading: cta.submitting, disabled: picked.length === 0 }}
               />
             </>
           }
@@ -269,29 +271,29 @@ export function StadiumSeatsPage(props: StadiumSeatsPageProps) {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-col gap-0.5">
                 <Heading id="block-seats-title" size="md">
-                  2 · Block {block.id} seats
+                  {t("2 · Block {block} seats", { block: block.id })}
                 </Heading>
                 <span className="text-sm text-sub">
-                  {block.sideName} · {block.category} · {formatMoney(block.price)} · {left} of {total} seats left
+                  {block.sideName} · {block.category} · {f.money(block.price)} · {t("{left} of {total} seats left", { left, total })}
                 </span>
               </div>
               <Button variant="outline" onClick={onBestTogether}>
-                Best 2 together
+                {t("Best 2 together")}
               </Button>
             </div>
             <SeatMap
-              label={`Block ${block.id} seats`}
-              groups={stadiumSeatGroups(block, selected)}
+              label={t("Block {block} seats", { block: block.id })}
+              groups={stadiumSeatGroups(block, selected, { t, f })}
               onToggle={onToggleSeat}
               header={<div className="text-center font-mono text-xs tracking-[0.1em] text-muted-ink">{block.facing}</div>}
             />
             <Legend
               bordered
               items={[
-                { label: "Available", swatch: { fill: "#D5E6DA", border: "solid", borderColor: "#0E4D2F", shape: "seat" } },
-                { label: "Your pick", swatch: { fill: "#F2B705", border: "solid", borderColor: "#121512", shape: "seat" } },
-                { label: "Taken", swatch: { fill: "#E7E4DA", shape: "seat", mark: "×" } },
-                { label: "Wheelchair space", swatch: { fill: "#FFFFFF", border: "dashed", borderColor: "#1F4E8C", shape: "seat" } },
+                { label: t("Available"), swatch: { fill: "#D5E6DA", border: "solid", borderColor: "#0E4D2F", shape: "seat" } },
+                { label: t("Your pick"), swatch: { fill: "#F2B705", border: "solid", borderColor: "#121512", shape: "seat" } },
+                { label: t("Taken"), swatch: { fill: "#E7E4DA", shape: "seat", mark: "×" } },
+                { label: t("Wheelchair space"), swatch: { fill: "#FFFFFF", border: "dashed", borderColor: "#1F4E8C", shape: "seat" } },
               ]}
             />
           </section>
@@ -322,6 +324,7 @@ export type ArenaTicketsPageProps = z.input<typeof arenaTicketsPagePropsSchema>;
 /** Page · Concert arena ticket types. */
 export function ArenaTicketsPage(props: ArenaTicketsPageProps) {
   validateProps("ArenaTicketsPage", arenaTicketsPagePropsSchema, props);
+  const { t } = useI18n();
   const { header, contextBar, ticketTypes, note, quantities, onQuantitiesChange, focusedId, onFocusChange, maxTickets, serviceFee, cta } =
     props;
   const count = Object.values(quantities).reduce((a, b) => a + b, 0);
@@ -331,7 +334,7 @@ export function ArenaTicketsPage(props: ArenaTicketsPageProps) {
       <EventContextBar {...contextBar} step={1} accent="plum" />
       <Container className="pt-7">
         <TwoColumn
-          asideLabel="Your tickets"
+          asideLabel={t("Your tickets")}
           asideWidth="lg"
           sticky={false}
           aside={
@@ -346,13 +349,13 @@ export function ArenaTicketsPage(props: ArenaTicketsPageProps) {
               />
               <OrderSummaryCard
                 lines={[
-                  { label: `${count} tickets`, amount: subtotal },
-                  { label: "Service fee", amount: serviceFee * count },
+                  { label: t("{count, plural, one {# ticket} other {# tickets}}", { count }), amount: subtotal },
+                  { label: t("Service fee"), amount: serviceFee * count },
                 ]}
                 total={subtotal + serviceFee * count}
-                note={`Max ${maxTickets} tickets per order.`}
+                note={t("Max {max} tickets per order.", { max: maxTickets })}
                 error={cta.error}
-                cta={{ label: "Continue to payment", onClick: cta.onContinue, loading: cta.submitting, disabled: count === 0 }}
+                cta={{ label: t("Continue to payment"), onClick: cta.onContinue, loading: cta.submitting, disabled: count === 0 }}
               />
             </>
           }
@@ -386,27 +389,28 @@ export type HallSeatsPageProps = z.input<typeof hallSeatsPagePropsSchema>;
 export function HallSeatsPage(props: HallSeatsPageProps) {
   validateProps("HallSeatsPage", hallSeatsPagePropsSchema, props);
   const { header, banner, map, tierFilter, onTierFilterChange, selected, onToggleSeat, maxSeats, serviceFee, panel, cta } = props;
-  const picked = hallPicked(map, selected);
+  const { t, f } = useI18n();
+  const picked = hallPicked(map, selected, { t, f });
   const subtotal = picked.reduce((sum, p) => sum + p.price, 0);
   return (
     <SiteLayout header={header}>
       {banner}
       <Container className="pt-7">
         <TwoColumn
-          asideLabel="Prices and your seats"
+          asideLabel={t("Prices and your seats")}
           aside={
             <>
               <TierPriceList tiers={map.tiers} />
               <PickedSeatsPanel
-                title="Your seats"
-                countLabel={`${picked.length} of ${maxSeats}`}
-                emptyText="Tap any coloured seat to add it. Tap again to remove."
+                title={t("Your seats")}
+                countLabel={t("{count} of {max}", { count: picked.length, max: maxSeats })}
+                emptyText={t("Tap any coloured seat to add it. Tap again to remove.")}
                 seats={picked}
                 onRemove={panel.onRemove}
                 message={panel.message ?? cta.error}
                 fees={serviceFee * picked.length}
                 total={subtotal + serviceFee * picked.length}
-                cta={{ label: "Continue", onClick: cta.onContinue, loading: cta.submitting, disabled: picked.length === 0 }}
+                cta={{ label: t("Continue"), onClick: cta.onContinue, loading: cta.submitting, disabled: picked.length === 0 }}
               />
             </>
           }
@@ -417,26 +421,29 @@ export function HallSeatsPage(props: HallSeatsPageProps) {
           >
             <div className="flex flex-wrap items-center justify-between gap-3">
               <Heading id="hall-title" size="md">
-                Choose your seats
+                {t("Choose your seats")}
               </Heading>
               <ChipGroup
-                label="Show prices"
+                label={t("Show prices")}
                 size="sm"
                 tone="plum"
                 value={tierFilter}
                 onValueChange={onTierFilterChange}
-                options={[{ value: "all", label: "All prices" }, ...map.tiers.map((t) => ({ value: t.id, label: formatMoney(t.price) }))]}
+                options={[
+                  { value: "all", label: t("All prices") },
+                  ...map.tiers.map((tier) => ({ value: tier.id, label: f.money(tier.price) })),
+                ]}
               />
             </div>
             <SeatMap
-              label="Concert hall seats"
+              label={t("Concert hall seats")}
               size="sm"
-              groups={hallSeatGroups(map, selected, tierFilter)}
+              groups={hallSeatGroups(map, selected, tierFilter, { t, f })}
               onToggle={onToggleSeat}
               header={
                 <div className="flex justify-center" aria-hidden="true">
                   <div className="flex h-11 w-3/5 items-center justify-center rounded-b-[120px] bg-ink font-display text-lg font-extrabold tracking-[0.25em] text-white">
-                    STAGE
+                    {t("STAGE")}
                   </div>
                 </div>
               }
@@ -444,9 +451,9 @@ export function HallSeatsPage(props: HallSeatsPageProps) {
             <Legend
               bordered
               items={[
-                { label: "Your pick", swatch: { fill: "#F2B705", border: "solid", borderColor: "#121512", shape: "seat" } },
-                { label: "Taken", swatch: { fill: "#D6D2C6", shape: "seat", mark: "×" } },
-                { label: "Wheelchair space", swatch: { fill: "#FFFFFF", border: "dashed", borderColor: "#1F4E8C", shape: "seat" } },
+                { label: t("Your pick"), swatch: { fill: "#F2B705", border: "solid", borderColor: "#121512", shape: "seat" } },
+                { label: t("Taken"), swatch: { fill: "#D6D2C6", shape: "seat", mark: "×" } },
+                { label: t("Wheelchair space"), swatch: { fill: "#FFFFFF", border: "dashed", borderColor: "#1F4E8C", shape: "seat" } },
               ]}
             />
           </section>
@@ -497,38 +504,39 @@ export function CinemaSeatsPage(props: CinemaSeatsPageProps) {
     cta,
   } = props;
   const showtime = showtimes.find((s) => s.id === showtimeId) ?? showtimes[0]!;
-  const picked = seats ? cinemaPicked(seats, showtime, selected) : [];
+  const { t, f } = useI18n();
+  const picked = seats ? cinemaPicked(seats, showtime, selected, { t, f }) : [];
   const subtotal = picked.reduce((sum, p) => sum + p.price, 0);
   return (
     <SiteLayout header={header}>
       {banner}
       <Container className="pt-7">
         <TwoColumn
-          asideLabel="Your showing"
+          asideLabel={t("Your showing")}
           aside={
             <PickedSeatsPanel
               prefix={
                 <div className="flex flex-col gap-0.5 border-b border-line pb-2.5">
-                  <Eyebrow size="sm">Your showing</Eyebrow>
+                  <Eyebrow size="sm">{t("Your showing")}</Eyebrow>
                   <span className="text-[17px] font-semibold">
-                    {showtime.dayLabel === "Today" ? "Today" : showtime.dayLabel} {showtime.dayNumber} · {showtime.time}
+                    {showtime.dayLabel} {showtime.dayNumber} · {showtime.time}
                   </span>
                   <span className="text-[13px] text-muted-ink">
-                    {screenLabel} · {showtime.format} · Standard {formatMoney(showtime.prices.standard)} · Recliner{" "}
-                    {formatMoney(showtime.prices.vip)}
+                    {screenLabel} · {showtime.format} · {t("Standard")} {f.money(showtime.prices.standard)} · {t("Recliner")}{" "}
+                    {f.money(showtime.prices.vip)}
                   </span>
                 </div>
               }
-              title="Seats"
-              countLabel={`${picked.length} of ${maxSeats}`}
-              emptyText="Tap green seats to choose. Row J is VIP recliners."
+              title={t("Seats")}
+              countLabel={t("{count} of {max}", { count: picked.length, max: maxSeats })}
+              emptyText={t("Tap green seats to choose. Row J is VIP recliners.")}
               seats={picked}
               onRemove={panel.onRemove}
               message={panel.message ?? cta.error}
-              feeLabel="Booking fee"
+              feeLabel={t("Booking fee")}
               fees={bookingFee * picked.length}
               total={subtotal + bookingFee * picked.length}
-              cta={{ label: "Continue to payment", onClick: cta.onContinue, loading: cta.submitting, disabled: picked.length === 0 }}
+              cta={{ label: t("Continue to payment"), onClick: cta.onContinue, loading: cta.submitting, disabled: picked.length === 0 }}
             />
           }
         >
@@ -538,34 +546,34 @@ export function CinemaSeatsPage(props: CinemaSeatsPageProps) {
             className="flex min-w-0 flex-col gap-4 rounded-2xl border border-line bg-white p-4 sm:p-[22px]"
           >
             <Heading id="cinema-seats-title" size="md">
-              2 · Pick your seats
+              {t("2 · Pick your seats")}
             </Heading>
             {seatsError ? (
-              <ErrorState message={seatsError} />
+              <ErrorState message={t(seatsError)} />
             ) : seats ? (
               <SeatMap
-                label="Cinema seats"
+                label={t("Cinema seats")}
                 size="lg"
-                groups={cinemaSeatGroups(seats, showtime, selected)}
+                groups={cinemaSeatGroups(seats, showtime, selected, { t, f })}
                 onToggle={onToggleSeat}
                 header={
                   <div className="flex flex-col items-center gap-1.5 pb-2.5" aria-hidden="true">
                     <div className="h-[26px] w-[78%] rounded-[50%_50%_0_0/100%_100%_0_0] border-t-[6px] border-ink" />
-                    <span className="font-mono text-xs tracking-[0.3em] text-muted-ink">SCREEN</span>
+                    <span className="font-mono text-xs tracking-[0.3em] text-muted-ink">{t("SCREEN")}</span>
                   </div>
                 }
               />
             ) : (
-              <LoadingState label="Loading seats" />
+              <LoadingState label={t("Loading seats")} />
             )}
             <Legend
               bordered
               items={[
-                { label: "Standard", swatch: { fill: "#D5E6DA", border: "solid", borderColor: "#0E4D2F", shape: "seat" } },
-                { label: "VIP recliner", swatch: { fill: "#0E4D2F", shape: "seat", wide: true } },
-                { label: "Your pick", swatch: { fill: "#F2B705", border: "solid", borderColor: "#121512", shape: "seat" } },
-                { label: "Taken", swatch: { fill: "#D6D2C6", shape: "seat", mark: "×" } },
-                { label: "Wheelchair space", swatch: { fill: "#FFFFFF", border: "dashed", borderColor: "#1F4E8C", shape: "seat" } },
+                { label: t("Standard"), swatch: { fill: "#D5E6DA", border: "solid", borderColor: "#0E4D2F", shape: "seat" } },
+                { label: t("VIP recliner"), swatch: { fill: "#0E4D2F", shape: "seat", wide: true } },
+                { label: t("Your pick"), swatch: { fill: "#F2B705", border: "solid", borderColor: "#121512", shape: "seat" } },
+                { label: t("Taken"), swatch: { fill: "#D6D2C6", shape: "seat", mark: "×" } },
+                { label: t("Wheelchair space"), swatch: { fill: "#FFFFFF", border: "dashed", borderColor: "#1F4E8C", shape: "seat" } },
               ]}
             />
           </section>
@@ -592,10 +600,11 @@ export function CheckoutPage(props: CheckoutPageProps) {
   validateProps("CheckoutPage", checkoutPagePropsSchema, props);
   const { header, hold, backHref, onExpire, form } = props;
   const plum = hold.theme === "plum" || hold.theme === "violet";
+  const { t } = useI18n();
   return (
     <SiteLayout header={header}>
       <EventContextBar
-        back={{ label: "Back to tickets", href: backHref }}
+        back={{ label: t("Back to tickets"), href: backHref }}
         step={2}
         accent={plum ? "plum" : "pitch"}
         expiresAt={hold.expiresAt}
@@ -629,6 +638,7 @@ export type OrderConfirmationPageProps = z.input<typeof orderConfirmationPagePro
 export function OrderConfirmationPage(props: OrderConfirmationPageProps) {
   validateProps("OrderConfirmationPage", orderConfirmationPagePropsSchema, props);
   const { header, order, ticketsHref, retryHref, eventHref, onAddToCalendar, onDownloadReceipt, parking } = props;
+  const { t } = useI18n();
   if (order.status !== "paid") {
     return (
       <SiteLayout header={header}>
@@ -641,20 +651,20 @@ export function OrderConfirmationPage(props: OrderConfirmationPageProps) {
   return (
     <SiteLayout header={header}>
       <Container width="narrow" className="flex flex-col gap-7 pt-12">
-        <OrderHero title="You're going" reference={order.reference} note="Confirmation sent by SMS and email" />
+        <OrderHero title={t("You're going")} reference={order.reference} note={t("Confirmation sent by SMS and email")} />
         <OrderSummaryStrip order={order} />
         <div className="flex flex-wrap justify-center gap-3">
           <LinkButton href={ticketsHref} variant="primary" size="xl">
-            View my tickets
+            {t("View my tickets")}
           </LinkButton>
           {onAddToCalendar ? (
             <Button variant="outline" size="xl" className="font-normal" onClick={onAddToCalendar}>
-              Add to calendar
+              {t("Add to calendar")}
             </Button>
           ) : null}
           {onDownloadReceipt ? (
             <Button variant="outline" size="xl" className="font-normal" onClick={onDownloadReceipt}>
-              Download receipt
+              {t("Download receipt")}
             </Button>
           ) : null}
         </div>
@@ -663,10 +673,10 @@ export function OrderConfirmationPage(props: OrderConfirmationPageProps) {
           <UpsellBanner
             title={order.parkingOffer.title}
             detail={order.parkingOffer.detail}
-            actionLabel="Add parking"
+            actionLabel={t("Add parking")}
             onAction={parking.onAdd}
             done={parking.added}
-            doneLabel="Parking added"
+            doneLabel={t("Parking added")}
           />
         ) : null}
       </Container>

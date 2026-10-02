@@ -32,6 +32,7 @@ export const matchSummary: EventSummary = {
   tag: "Premier League · Matchday 12",
   art: "Nile v Delta",
   theme: "pitch",
+  imageUrl: "/images/events/nile-fc-vs-delta-sc.jpg",
   startsAt: "2026-10-18T20:00:00+03:00",
   venue: { name: "Capital Stadium", area: "Cairo", city: "cairo" },
   priceFrom: 75,
@@ -40,8 +41,8 @@ export const matchSummary: EventSummary = {
   requiresFanId: true,
   maxPerOrder: 4,
   serviceFee: 15,
-  homeTeam: { name: "Nile FC", short: "NFC" },
-  awayTeam: { name: "Delta SC", short: "DSC" },
+  homeTeam: { name: "Nile FC", short: "NFC", logoUrl: "/images/teams/nfc.svg" },
+  awayTeam: { name: "Delta SC", short: "DSC", logoUrl: "/images/teams/dsc.svg" },
 };
 
 export const concertSummary: EventSummary = {
@@ -55,6 +56,7 @@ export const concertSummary: EventSummary = {
   tag: "Concert · Pop",
   art: "Layla Nour Live",
   theme: "plum",
+  imageUrl: "/images/events/layla-nour-live-in-cairo.jpg",
   startsAt: "2026-10-30T20:00:00+03:00",
   venue: { name: "Nile Arena", area: "New Cairo", city: "cairo" },
   priceFrom: 450,
@@ -69,6 +71,7 @@ export const comingSoonSummary: EventSummary = {
   ...matchSummary,
   id: "evt_egypt",
   slug: "egypt-vs-morocco",
+  imageUrl: "/images/events/egypt-vs-morocco.jpg",
   title: "Egypt vs Morocco",
   tag: "National team · Qualifier",
   category: "National team",
@@ -76,8 +79,8 @@ export const comingSoonSummary: EventSummary = {
   status: "coming_soon",
   statusLabel: "Coming soon",
   priceFrom: 100,
-  homeTeam: { name: "Egypt", short: "EGY" },
-  awayTeam: { name: "Morocco", short: "MAR" },
+  homeTeam: { name: "Egypt", short: "EGY", logoUrl: "/images/teams/egy.svg" },
+  awayTeam: { name: "Morocco", short: "MAR", logoUrl: "/images/teams/mar.svg" },
 };
 
 export const matchDetail: EventDetail = {
@@ -137,12 +140,29 @@ export const concertDetail: EventDetail = {
 };
 
 export const fans: Fan[] = [
-  { id: "fan_omar", name: "Omar K. (you)", initials: "OK", fanIdMasked: "Fan ID •••• 4821", status: "approved", isSelf: true },
-  { id: "fan_youssef", name: "Youssef A.", initials: "YA", fanIdMasked: "Fan ID •••• 1907", status: "approved", isSelf: false },
+  {
+    id: "fan_omar",
+    name: "Omar K. (you)",
+    initials: "OK",
+    avatarUrl: "/images/avatars/omar.jpg",
+    fanIdMasked: "Fan ID •••• 4821",
+    status: "approved",
+    isSelf: true,
+  },
+  {
+    id: "fan_youssef",
+    name: "Youssef A.",
+    initials: "YA",
+    avatarUrl: "/images/avatars/youssef.jpg",
+    fanIdMasked: "Fan ID •••• 1907",
+    status: "approved",
+    isSelf: false,
+  },
   {
     id: "fan_hassan",
     name: "Hassan M.",
     initials: "HM",
+    avatarUrl: "/images/avatars/hassan.jpg",
     fanIdMasked: "Fan ID under review — can’t buy yet",
     status: "under_review",
     isSelf: false,
@@ -153,6 +173,7 @@ export const user: User = {
   id: "usr_omar",
   fullName: "Omar Khaled",
   initials: "OK",
+  avatarUrl: "/images/avatars/omar.jpg",
   phoneMasked: "+20 10•• ••• 482",
   email: "omar.k@mail.com",
   fanId: { status: "approved", number: "2210 4417 4821", validUntil: "Oct 2029", nameEn: "Omar Khaled" },
@@ -365,6 +386,7 @@ export const hold: Hold = {
   eventMeta: "Sat 18 Oct · 20:00 · Capital Stadium",
   eventKind: "match",
   theme: "pitch",
+  imageUrl: "/images/events/nile-fc-vs-delta-sc.jpg",
   expiresAt: "2026-10-01T10:10:00+03:00",
   lines: [
     { label: "Category 1 · West stand × 2", quantity: 2, unitPrice: 250, amount: 500 },
@@ -378,8 +400,8 @@ export const hold: Hold = {
   total: 530,
   holdersTitle: "Ticket holders",
   holders: [
-    { initials: "OK", name: "Omar K.", detail: "Fan ID •••• 4821" },
-    { initials: "YA", name: "Youssef A.", detail: "Fan ID •••• 1907" },
+    { initials: "OK", avatarUrl: "/images/avatars/omar.jpg", name: "Omar K.", detail: "Fan ID •••• 4821" },
+    { initials: "YA", avatarUrl: "/images/avatars/youssef.jpg", name: "Youssef A.", detail: "Fan ID •••• 1907" },
   ],
   holdersNote: "Tickets are tied to these Fan IDs.",
   backHref: "/events/nile-fc-vs-delta-sc/tickets",
@@ -393,6 +415,7 @@ const baseTicket: Ticket = {
   eventSlug: matchSummary.slug,
   eventKind: "match",
   theme: "pitch",
+  imageUrl: "/images/events/nile-fc-vs-delta-sc.jpg",
   variant: "ink",
   status: "valid",
   kindLabel: "PREMIER LEAGUE · MATCHDAY 12",
@@ -415,6 +438,7 @@ const baseTicket: Ticket = {
   seatLabel: "W3 · Row L · Seat 18",
   holderName: "Omar K.",
   holderInitials: "OK",
+  holderAvatarUrl: "/images/avatars/omar.jpg",
   holderDetail: "Fan ID •••• 4821 · bring your ID card",
   holderDate: "18.10.26",
   position: { index: 1, of: 2 },
@@ -436,6 +460,7 @@ export const matchTicket2: Ticket = {
   code: "MP-58214",
   holderName: "Youssef A.",
   holderInitials: "YA",
+  holderAvatarUrl: "/images/avatars/youssef.jpg",
   position: { index: 2, of: 2 },
   seatLabel: "W3 · Row L · Seat 19",
 };
@@ -448,6 +473,7 @@ export const concertTicket: Ticket = {
   eventSlug: concertSummary.slug,
   eventKind: "concert",
   theme: "plum",
+  imageUrl: "/images/events/layla-nour-live-in-cairo.jpg",
   variant: "lime",
   kindLabel: "CONCERT · POP",
   title: "Layla Nour Live",
@@ -480,6 +506,7 @@ export const order: Order = {
   eventMeta: "Sat 18 Oct · 20:00 · Capital Stadium",
   eventKind: "match",
   theme: "pitch",
+  imageUrl: "/images/events/nile-fc-vs-delta-sc.jpg",
   entryNote: "Gates open 18:00 · Use Gate 7",
   total: 530,
   paymentLabel: "Paid by card •••• 0042",
@@ -509,6 +536,7 @@ export const queueTurn: QueueStatus = { ...queueWaiting, phase: "your_turn", ope
 
 export const refundInReview: Refund = {
   id: "rf_1",
+  imageUrl: "/images/events/layla-nour-live-in-cairo.jpg",
   reference: "RF-2410-0091",
   orderId: "ord_2",
   requestedLabel: "1 OCT",
@@ -577,11 +605,21 @@ export const refundOptions: RefundOptions = {
 };
 
 export const listings: ResaleListing[] = [
-  { id: "lst_1", ticketId: "tkt_x", title: "Cairo Jazz Nights · 2-day", price: 300, payout: 285, status: "listed", detail: "300 EGP" },
+  {
+    id: "lst_1",
+    ticketId: "tkt_x",
+    title: "Cairo Jazz Nights · 2-day",
+    imageUrl: "/images/events/cairo-jazz-nights.jpg",
+    price: 300,
+    payout: 285,
+    status: "listed",
+    detail: "300 EGP",
+  },
   {
     id: "lst_2",
     ticketId: "tkt_y",
     title: "Canal United vs Sinai Stars",
+    imageUrl: "/images/events/canal-united-vs-sinai-stars.jpg",
     price: 50,
     payout: 47.5,
     status: "sold",
@@ -636,6 +674,7 @@ export const incomingTransfer: Transfer = {
   recipientLabel: "Fan ID •••• 1907",
   eventTitle: "Nile FC vs Delta SC",
   eventSlug: "nile-fc-vs-delta-sc",
+  imageUrl: "/images/events/nile-fc-vs-delta-sc.jpg",
   seatLabel: "W3 · Row L · Seat 18",
   startsAt: "2026-10-18T20:00:00+03:00",
   createdAt: "2026-10-01T10:00:00+03:00",
@@ -649,6 +688,7 @@ export const outgoingTransfer: Transfer = {
   recipientLabel: "fri•••com",
   eventTitle: "Layla Nour Live",
   eventSlug: "layla-nour-live-in-cairo",
+  imageUrl: "/images/events/layla-nour-live-in-cairo.jpg",
   seatLabel: "Golden · Standing · Entrance B",
 };
 
@@ -680,6 +720,7 @@ export const notifications: Notification[] = [
     title: "Omar Khaled sent you a ticket",
     body: "Nile FC vs Delta SC · W3 · Row L · Seat 18. Accept within 24 hours.",
     href: "/transfers",
+    imageUrl: "/images/events/nile-fc-vs-delta-sc.jpg",
     createdAt: "2026-10-01T09:55:00+03:00",
     read: false,
   },
@@ -689,6 +730,7 @@ export const notifications: Notification[] = [
     title: "Delta SC vs Red Sea FC has been postponed",
     body: "Your 2 tickets were refunded in full, including fees.",
     href: "/refunds",
+    imageUrl: "/images/events/delta-sc-vs-red-sea-fc.jpg",
     createdAt: "2026-09-28T12:00:00+03:00",
     read: true,
   },

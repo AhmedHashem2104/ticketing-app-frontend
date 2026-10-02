@@ -10,6 +10,9 @@ export const amountSchema = z.number().nonnegative().finite();
 
 export const isoDateTimeSchema = z.iso.datetime({ offset: true });
 
+/** Image location: a same-origin path (`/images/...`) or an absolute HTTPS URL. */
+export const imageUrlSchema = z.string().regex(/^(\/(?!\/)|https:\/\/)\S+$/, { error: "Use a /path or https:// image URL" });
+
 export const themeSchema = z.enum(["pitch", "forest", "plum", "violet", "ink"]);
 export type Theme = z.infer<typeof themeSchema>;
 

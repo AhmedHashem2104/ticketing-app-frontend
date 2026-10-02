@@ -50,8 +50,8 @@
       "description": "Apple/Google wallet passes. Disabled until the pass service is live."
     },
     "arabicLanguage": {
-      "enabled": false,
-      "description": "Arabic (RTL) language toggle in the header. Disabled until translations ship."
+      "enabled": true,
+      "description": "English / Arabic switch in the header and on the sign-in pages. Arabic pages (/ar/...) are right-to-left; when off, the switch is hidden but /ar URLs still work."
     }
   }
 }

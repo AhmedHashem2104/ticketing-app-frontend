@@ -1,10 +1,11 @@
 "use client";
 
 import { addSeconds, type FanIdExtracted, type User } from "@repo/contracts";
-import { AccountPage, FanIdPage, ForgotPasswordPage, LoginPage, NotificationsPage, SignUpPage } from "@repo/design-system";
-import { useRouter, useSearchParams } from "next/navigation";
+import { AccountPage, FanIdPage, ForgotPasswordPage, LoginPage, NotificationsPage, SignUpPage, useI18n } from "@repo/design-system";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AppHeader } from "@/components/app-chrome";
+import { LanguageSwitch } from "@/components/language-switch";
 import { errorMessage, toApiError } from "@/lib/api/client";
 import { RequireAuth, safeNextPath, useAuth } from "@/lib/auth/session";
 import { useFeatureFlags } from "@/lib/feature-flags/client";
@@ -24,33 +25,15 @@ import {
   useVerifyOtp,
 } from "@/lib/queries";
 import { routes } from "@/lib/routes";
-import { authBrand } from "./shared";
-
-function LanguageToggle() {
-  const flags = useFeatureFlags();
-  const [rtl, setRtl] = useState(false);
-  useEffect(() => {
-    document.documentElement.dir = rtl ? "rtl" : "ltr";
-  }, [rtl]);
-  if (!flags.arabicLanguage) return null;
-  return (
-    <button
-      type="button"
-      aria-label={rtl ? "Switch to English" : "Switch to Arabic"}
-      onClick={() => setRtl((v) => !v)}
-      className="h-11 min-w-11 rounded-lg border border-line bg-white"
-    >
-      {rtl ? "EN" : "ع"}
-    </button>
-  );
-}
+import { useAuthBrand } from "./shared";
+import { useLocalizedRouter } from "@/lib/i18n/navigation";
 
 const resendAt = (seconds: number) => addSeconds(new Date(), seconds).toISOString();
 
 /* ---------- Sign up + OTP ---------- */
 
 export function SignUpView() {
-  const router = useRouter();
+  const router = useLocalizedRouter();
   const params = useSearchParams();
   const flags = useFeatureFlags();
   const auth = useAuth();
@@ -60,13 +43,15 @@ export function SignUpView() {
   const [pending, setPending] = useState<{ verificationId: string; maskedPhone: string; resendAvailableAt: string }>();
   const next = safeNextPath(params.get("next"), flags.fanId ? routes.fanId : routes.home);
   const signUpError = signUp.error ? toApiError(signUp.error) : undefined;
+  const authBrand = useAuthBrand();
+  const { t } = useI18n();
 
   if (!pending) {
     return (
       <SignUpPage
         stage="details"
         brand={authBrand}
-        topRight={<LanguageToggle />}
+        topRight={<LanguageSwitch />}
         signUp={{
           onSubmit: (values) =>
             signUp.mutate(values, {
@@ -90,7 +75,7 @@ export function SignUpView() {
     <SignUpPage
       stage="otp"
       brand={authBrand}
-      topRight={<LanguageToggle />}
+      topRight={<LanguageSwitch />}
       otp={{
         maskedPhone: pending.maskedPhone,
         resendAvailableAt: pending.resendAvailableAt,
@@ -115,7 +100,7 @@ export function SignUpView() {
         submitting: verify.isPending,
         serverError: errorMessage(verify.error ?? resend.error),
         note: flags.fanId
-          ? "Next we'll set up your Fan ID — you need it for football matches. You can skip it if you only buy concert tickets."
+          ? t("Next we'll set up your Fan ID — you need it for football matches. You can skip it if you only buy concert tickets.")
           : undefined,
       }}
     />
@@ -125,11 +110,13 @@ export function SignUpView() {
 /* ---------- Log in ---------- */
 
 export function LoginView() {
-  const router = useRouter();
+  const router = useLocalizedRouter();
   const params = useSearchParams();
   const auth = useAuth();
   const login = useLogin();
   const next = safeNextPath(params.get("next"));
+  const authBrand = useAuthBrand();
+  const { t } = useI18n();
 
   useEffect(() => {
     if (auth.status === "signed_in" && !login.isPending) router.replace(next);
@@ -138,12 +125,12 @@ export function LoginView() {
   return (
     <LoginPage
       brand={authBrand}
-      topRight={<LanguageToggle />}
+      topRight={<LanguageSwitch />}
       notice={
         params.get("reset")
-          ? "Your password was changed. You're signed in on this device only."
+          ? t("Your password was changed. You're signed in on this device only.")
           : params.get("next")
-            ? "Log in to continue."
+            ? t("Log in to continue.")
             : undefined
       }
       login={{
@@ -166,15 +153,16 @@ export function LoginView() {
 /* ---------- Forgot password ---------- */
 
 export function ForgotPasswordView() {
-  const router = useRouter();
+  const router = useLocalizedRouter();
   const auth = useAuth();
   const forgot = useForgotPassword();
   const reset = useResetPassword();
   const [request, setRequest] = useState<{ verificationId: string; maskedPhone: string }>();
+  const authBrand = useAuthBrand();
   return (
     <ForgotPasswordPage
       brand={authBrand}
-      topRight={<LanguageToggle />}
+      topRight={<LanguageSwitch />}
       form={{
         stage: request ? "reset" : "request",
         maskedPhone: request?.maskedPhone,
@@ -246,7 +234,7 @@ function FanIdFlow({ user }: { user: User }) {
           }),
         approved:
           user.fanId.status === "approved"
-            ? { name: user.fanId.nameEn, number: user.fanId.number, validUntil: user.fanId.validUntil }
+            ? { name: user.fanId.nameEn, number: user.fanId.number, validUntil: user.fanId.validUntil, photoUrl: user.avatarUrl }
             : undefined,
         underReview,
         pending: documents.isPending || submit.isPending,
@@ -266,12 +254,13 @@ export function AccountView() {
 }
 
 function Account({ user }: { user: User }) {
-  const router = useRouter();
+  const router = useLocalizedRouter();
   const auth = useAuth();
   const flags = useFeatureFlags();
   const preferences = useUpdatePreferences();
   const link = useLinkFan();
   const unlink = useUnlinkFan();
+  const { t } = useI18n();
   return (
     <AccountPage
       header={<AppHeader />}
@@ -306,11 +295,11 @@ function Account({ user }: { user: User }) {
         serverError: errorMessage(preferences.error),
       }}
       links={[
-        { label: "My tickets", description: "QR codes, transfers and resale", href: routes.myTickets },
-        { label: "Ticket transfers", description: "Accept tickets sent to you", href: routes.transfers },
-        ...(flags.refunds ? [{ label: "Refunds", description: "Request and track refunds", href: routes.refunds }] : []),
-        { label: "Notifications", description: "Orders, transfers and event updates", href: routes.notifications },
-        { label: "Help centre", description: "Fan ID, payments and entry", href: "/info/help" },
+        { label: t("My tickets"), description: t("QR codes, transfers and resale"), href: routes.myTickets },
+        { label: t("Ticket transfers"), description: t("Accept tickets sent to you"), href: routes.transfers },
+        ...(flags.refunds ? [{ label: t("Refunds"), description: t("Request and track refunds"), href: routes.refunds }] : []),
+        { label: t("Notifications"), description: t("Orders, transfers and event updates"), href: routes.notifications },
+        { label: t("Help centre"), description: t("Fan ID, payments and entry"), href: "/info/help" },
       ]}
     />
   );

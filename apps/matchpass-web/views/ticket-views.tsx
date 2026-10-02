@@ -1,9 +1,10 @@
 "use client";
 
 import type { Alert, Ticket } from "@repo/contracts";
-import { MessagePage, MyTicketsPage, TicketWalletPage, TransfersPage } from "@repo/design-system";
+import { MessagePage, MyTicketsPage, TicketWalletPage, TransfersPage, useI18n } from "@repo/design-system";
+import { msg } from "@repo/i18n";
 import { useQuery } from "@tanstack/react-query";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { AppFooter, AppHeader } from "@/components/app-chrome";
 import { errorMessage } from "@/lib/api/client";
@@ -24,19 +25,27 @@ import {
 } from "@/lib/queries";
 import { routes, ticketGroupKey } from "@/lib/routes";
 import { PageError, PageLoading } from "./shared";
+import { useLocalizedRouter } from "@/lib/i18n/navigation";
 
 export function useTicketNav(current: "upcoming" | "past" | "refunds", upcomingCount?: number) {
   const flags = useFeatureFlags();
   const refunds = useRefunds();
+  const { t } = useI18n();
   return [
     {
       href: routes.myTickets,
-      label: upcomingCount === undefined ? "Upcoming" : `Upcoming (${upcomingCount})`,
+      label: upcomingCount === undefined ? t("Upcoming") : t("Upcoming ({count})", { count: upcomingCount }),
       current: current === "upcoming",
     },
-    { href: `${routes.myTickets}?scope=past`, label: "Past", current: current === "past" },
+    { href: `${routes.myTickets}?scope=past`, label: t("Past"), current: current === "past" },
     ...(flags.refunds
-      ? [{ href: routes.refunds, label: refunds.data ? `Refunds (${refunds.data.length})` : "Refunds", current: current === "refunds" }]
+      ? [
+          {
+            href: routes.refunds,
+            label: refunds.data ? t("Refunds ({count})", { count: refunds.data.length }) : t("Refunds"),
+            current: current === "refunds",
+          },
+        ]
       : []),
   ];
 }
@@ -45,8 +54,8 @@ const NOTICES: Record<string, Alert> = {
   transferred: {
     id: "notice_transferred",
     tone: "info",
-    title: "Ticket sent",
-    body: "They have 24 hours to accept. Until they do, you can cancel the transfer from the ticket.",
+    title: msg("Ticket sent"),
+    body: msg("They have 24 hours to accept. Until they do, you can cancel the transfer from the ticket."),
   },
 };
 
@@ -69,21 +78,22 @@ function MyTickets() {
   const notice = NOTICES[params.get("notice") ?? ""];
   const transfers = useTransfers();
   const cancelTransfer = useCancelTransfer();
-  const pendingTransferFor = (ticket: Ticket) => transfers.data?.outgoing.find((t) => t.ticketId === ticket.id && t.status === "pending");
+  const pendingTransferFor = (ticket: Ticket) => transfers.data?.outgoing.find((x) => x.ticketId === ticket.id && x.status === "pending");
+  const { t } = useI18n();
 
   return (
     <MyTicketsPage
       header={<AppHeader active="tickets" />}
       nav={nav}
       alerts={[
-        ...(notice ? [notice] : []),
+        ...(notice ? [{ ...notice, title: t(notice.title), body: t(notice.body) }] : []),
         ...(walletNotice
           ? [
               {
                 id: "wallet",
                 tone: "info" as const,
-                title: "Wallet passes are coming soon",
-                body: "For now, show the QR from My tickets at the gate.",
+                title: t("Wallet passes are coming soon"),
+                body: t("For now, show the QR from My tickets at the gate."),
               },
             ]
           : []),
@@ -92,10 +102,10 @@ function MyTickets() {
       status={query.isPending ? "loading" : query.isError ? "error" : "success"}
       onRetry={() => void query.refetch()}
       tickets={query.data ?? []}
-      showQrHref={(t) => routes.ticket(t.id)}
-      transferHref={flags.ticketTransfer ? (t) => routes.transfer(t.id) : undefined}
-      resaleHref={flags.resale ? (t) => routes.resale(t.id) : undefined}
-      refundHref={flags.refunds ? (t) => routes.newRefund(t.orderId) : undefined}
+      showQrHref={(ticket) => routes.ticket(ticket.id)}
+      transferHref={flags.ticketTransfer ? (ticket) => routes.transfer(ticket.id) : undefined}
+      resaleHref={flags.resale ? (ticket) => routes.resale(ticket.id) : undefined}
+      refundHref={flags.refunds ? (ticket) => routes.newRefund(ticket.orderId) : undefined}
       onAddToWallet={flags.addToWallet ? () => setWalletNotice(true) : undefined}
       onCancelTransfer={
         flags.ticketTransfer
@@ -127,7 +137,7 @@ function groupTickets(tickets: Ticket[]) {
 
 function Wallet({ ticketId }: { ticketId: string }) {
   const flags = useFeatureFlags();
-  const router = useRouter();
+  const router = useLocalizedRouter();
   const params = useSearchParams();
   const tickets = useTickets();
   const transfer = useTransfer();
@@ -135,25 +145,26 @@ function Wallet({ ticketId }: { ticketId: string }) {
   const cancelTransfer = useCancelTransfer();
   const [transferOpen, setTransferOpen] = useState(params.get("transfer") === "1");
   const groups = useMemo(() => groupTickets(tickets.data ?? []), [tickets.data]);
-  const current = tickets.data?.find((t) => t.id === ticketId);
+  const current = tickets.data?.find((x) => x.id === ticketId);
   const qr = useTicketQr(ticketId, !!current?.qrReady && current.status === "valid");
+  const { t } = useI18n();
 
-  if (tickets.isPending) return <PageLoading active="tickets" label="Loading your tickets" />;
+  if (tickets.isPending) return <PageLoading active="tickets" label={t("Loading your tickets")} />;
   if (tickets.isError) return <PageError error={tickets.error} onRetry={() => void tickets.refetch()} active="tickets" />;
 
-  const group = groups.find((g) => g.tickets.some((t) => t.id === ticketId));
+  const group = groups.find((g) => g.tickets.some((x) => x.id === ticketId));
   if (!group) {
     return (
       <MessagePage
         header={<AppHeader active="tickets" />}
         footer={<AppFooter />}
-        title="Ticket not found"
-        body="This ticket isn't in your upcoming tickets. It may have been transferred, resold or refunded."
-        action={{ label: "Back to my tickets", href: routes.myTickets }}
+        title={t("Ticket not found")}
+        body={t("This ticket isn't in your upcoming tickets. It may have been transferred, resold or refunded.")}
+        action={{ label: t("Back to my tickets"), href: routes.myTickets }}
       />
     );
   }
-  const index = group.tickets.findIndex((t) => t.id === ticketId);
+  const index = group.tickets.findIndex((x) => x.id === ticketId);
   const go = (id: string) => {
     setTransferOpen(false);
     transfer.reset();
@@ -181,11 +192,11 @@ function Wallet({ ticketId }: { ticketId: string }) {
           : undefined
       }
       qr={{ token: qr.data, error: qr.isError ? errorMessage(qr.error) : undefined, onExpire: () => void qr.refetch() }}
-      onCancelTransfer={(t) => {
-        const pending = transfers.data?.outgoing.find((x) => x.ticketId === t.id && x.status === "pending");
+      onCancelTransfer={(ticket) => {
+        const pending = transfers.data?.outgoing.find((x) => x.ticketId === ticket.id && x.status === "pending");
         if (pending) cancelTransfer.mutate(pending.id);
       }}
-      resaleHref={flags.resale ? (t) => routes.resale(t.id) : undefined}
+      resaleHref={flags.resale ? (ticket) => routes.resale(ticket.id) : undefined}
       backHref={routes.myTickets}
     />
   );
@@ -203,6 +214,7 @@ function Transfers() {
   const decline = useDeclineTransfer();
   const cancel = useCancelTransfer();
   const [message, setMessage] = useState<{ tone: "success" | "danger"; text: string }>();
+  const { t } = useI18n();
   const busy = accept.isPending
     ? accept.variables
     : decline.isPending
@@ -213,7 +225,7 @@ function Transfers() {
   const run = (action: typeof accept | typeof decline | typeof cancel, success: string) => (id: string) =>
     action.mutate(id, {
       onSuccess: () => setMessage({ tone: "success", text: success }),
-      onError: (error) => setMessage({ tone: "danger", text: errorMessage(error) ?? "Something went wrong" }),
+      onError: (error) => setMessage({ tone: "danger", text: errorMessage(error) ?? t("Something went wrong") }),
     });
   return (
     <TransfersPage
@@ -222,13 +234,13 @@ function Transfers() {
       onRetry={() => void transfers.refetch()}
       incoming={{
         transfers: transfers.data?.incoming ?? [],
-        onAccept: run(accept, "Ticket accepted — it's in My tickets now."),
-        onDecline: run(decline, "Transfer declined. The ticket went back to the sender."),
+        onAccept: run(accept, t("Ticket accepted — it's in My tickets now.")),
+        onDecline: run(decline, t("Transfer declined. The ticket went back to the sender.")),
         busyId: busy,
       }}
       outgoing={{
         transfers: transfers.data?.outgoing ?? [],
-        onCancel: run(cancel, "Transfer cancelled — the ticket is yours again."),
+        onCancel: run(cancel, t("Transfer cancelled — the ticket is yours again.")),
         busyId: busy,
       }}
       message={message}

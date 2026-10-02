@@ -58,6 +58,12 @@ const fileMeta = (req: Request, field: string) => {
   return file ? { type: file.mimetype, size: file.size } : undefined;
 };
 
+/** The uploaded photo's bytes, keyed by field, for the reviewers' queue. */
+const fileData = (req: Request, field: "front" | "back" | "selfie") => {
+  const file = (req.files as Record<string, Express.Multer.File[]> | undefined)?.[field]?.[0];
+  return file ? { [field]: { type: file.mimetype, data: file.buffer } } : {};
+};
+
 export function accountRouter(store: Store, config: AppConfig) {
   const router = Router();
   const auth = requireAuth(store);
@@ -162,6 +168,7 @@ export function accountRouter(store: Store, config: AppConfig) {
       throw new HttpError("UNAUTHORIZED", "Mobile number or password is incorrect");
     }
     store.loginFailures.delete(phone);
+    if (user.suspended) throw new HttpError("FORBIDDEN", "This account is suspended. Contact support.");
     res.json(createSession(user));
   });
 
@@ -268,6 +275,8 @@ export function accountRouter(store: Store, config: AppConfig) {
     if (!parsed.success) throw new HttpError("VALIDATION_ERROR", "Check your photos", zodDetails(parsed.error));
     const scanId = store.id("scan");
     store.scans.set(scanId, { userId: user.id, documentType: parsed.data.documentType, nameEn: user.fullName });
+    // Keep the photos (memory only) so the operations team can review them if the automatic check flags the fan.
+    user.fanIdFiles = { ...fileData(req, "front"), ...fileData(req, "back") };
     const extracted: FanIdExtracted = {
       scanId,
       nameEn: user.fullName,
@@ -292,7 +301,20 @@ export function accountRouter(store: Store, config: AppConfig) {
     if (!scan || scan.userId !== user.id) throw new HttpError("NOT_FOUND", "Scan not found — photograph your document again");
     if (user.fanId.status === "approved") throw new HttpError("CONFLICT", "You already have an approved Fan ID");
     store.scans.delete(parsed.data.scanId);
-    user.fanId = { status: "pending", submittedAt: store.now().toISOString() };
+    const submittedAt = store.now().toISOString();
+    user.fanId = { status: "pending", submittedAt };
+    user.fanIdFiles = { ...user.fanIdFiles, ...fileData(req, "selfie") };
+    user.fanIdSubmission = {
+      documentType: scan.documentType === "passport" ? "passport" : "national_id",
+      nameEn: user.fullName,
+      nameAr: user.fullName === "Omar Khaled" ? "عمر خالد" : "الاسم كما في الوثيقة",
+      idNumberMasked: scan.documentType === "passport" ? "A •••• •• 21" : "2 98 •••• •••• 21",
+      submittedAt,
+      documentImageUrl: scan.documentType === "passport" ? "/images/kyc/passport.svg" : "/images/kyc/national-id.svg",
+      selfieImageUrl: user.avatarUrl ?? "/images/kyc/national-id.svg",
+      matchScore: 0.92,
+      flags: [],
+    };
     user.fanIdReviewAt = addSeconds(store.now(), config.fanIdReviewSeconds).getTime();
     res.status(202).json(user.fanId);
   });

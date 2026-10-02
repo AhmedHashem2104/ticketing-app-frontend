@@ -17,6 +17,10 @@ export function requireAuth(store: Store): RequestHandler {
       next(new HttpError("UNAUTHORIZED", "Sign in to continue"));
       return;
     }
+    if (user.suspended) {
+      next(new HttpError("FORBIDDEN", "This account is suspended. Contact support."));
+      return;
+    }
     res.locals.user = user;
     res.locals.token = token;
     next();

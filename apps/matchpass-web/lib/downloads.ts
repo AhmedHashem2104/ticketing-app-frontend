@@ -1,4 +1,5 @@
-import { addHours, formatAmount, formatMoney, icsTimestamp, type Order } from "@repo/contracts";
+import { addHours, icsTimestamp, type Order } from "@repo/contracts";
+import { createFormatters, createTranslator, type Formatters, type Translate } from "@repo/i18n";
 
 const icsDate = (date: Date | string) => icsTimestamp(date);
 const escapeIcs = (text: string) =>
@@ -31,17 +32,20 @@ export function buildIcs(event: CalendarEvent, now: Date | string = new Date()) 
   ].join("\r\n");
 }
 
-export function buildReceipt(order: Order) {
+const english = { t: createTranslator("en"), f: createFormatters("en") };
+
+/** Plain-text receipt in the visitor's language (pass `useI18n()`'s `{ t, f }`; English by default). */
+export function buildReceipt(order: Order, { t, f }: { t: Translate; f: Formatters } = english) {
   return [
-    "MATCHPASS — RECEIPT",
-    `Order ${order.reference}`,
+    t("MATCHPASS — RECEIPT"),
+    t("Order {reference}", { reference: order.reference }),
     `${order.eventTitle}`,
     `${order.eventMeta}`,
     "",
-    ...order.tickets.map((t) => `${t.holderName.padEnd(20)} ${t.seatLabel.padEnd(32)} ${formatAmount(t.price)}`),
+    ...order.tickets.map((ticket) => `${ticket.holderName.padEnd(20)} ${ticket.seatLabel.padEnd(32)} ${f.amount(ticket.price)}`),
     "",
     `${order.paymentLabel}`,
-    `Total (incl. VAT): ${formatMoney(order.total)}`,
+    `${t("Total (incl. VAT)")}: ${f.money(order.total)}`,
   ].join("\n");
 }
 

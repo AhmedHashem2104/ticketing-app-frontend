@@ -1,5 +1,6 @@
 import type { City, EventDetail, EventKind, PriceRow, SaleStatus, Team, Theme, VenueLayout } from "@repo/contracts";
 import { dayjs } from "@repo/contracts";
+import { eventImageUrl, teamLogoUrl } from "./media";
 import { addHours, cairoDateTime, dayLabel, longDayLabel, timeLabel } from "./time";
 
 const statusLabels: Record<SaleStatus, string> = {
@@ -82,6 +83,7 @@ function match(seed: MatchSeed, now: Date): EventDetail {
     title: `${seed.home.name} vs ${seed.away.name}`,
     tag: seed.tag,
     art: `${seed.home.name.split(" ")[0]} v ${seed.away.name.split(" ")[0]}`,
+    imageUrl: eventImageUrl(seed.slug),
     theme: seed.theme ?? "pitch",
     startsAt,
     venue: seed.venue,
@@ -168,6 +170,7 @@ function show(seed: ShowSeed, now: Date): EventDetail {
     ...(seed.subtitle ? { subtitle: seed.subtitle } : {}),
     tag: seed.tag,
     art: seed.art,
+    imageUrl: eventImageUrl(seed.slug),
     theme: seed.theme ?? "plum",
     startsAt,
     ...(seed.endDay !== undefined ? { endsAt: cairoDateTime(seed.endDay, "23:00", now) } : {}),
@@ -266,15 +269,15 @@ function hallPriceTable(balcony: number): PriceRow[] {
 }
 
 const teams = {
-  nile: { name: "Nile FC", short: "NFC" },
-  delta: { name: "Delta SC", short: "DSC" },
-  canal: { name: "Canal United", short: "CU" },
-  sinai: { name: "Sinai Stars", short: "SS" },
-  alex: { name: "Alex Port FC", short: "APF" },
-  upper: { name: "Upper Egypt SC", short: "UES" },
-  redSea: { name: "Red Sea FC", short: "RSF" },
-  egypt: { name: "Egypt", short: "EGY" },
-  morocco: { name: "Morocco", short: "MAR" },
+  nile: { name: "Nile FC", short: "NFC", logoUrl: teamLogoUrl("nfc") },
+  delta: { name: "Delta SC", short: "DSC", logoUrl: teamLogoUrl("dsc") },
+  canal: { name: "Canal United", short: "CU", logoUrl: teamLogoUrl("cu") },
+  sinai: { name: "Sinai Stars", short: "SS", logoUrl: teamLogoUrl("ss") },
+  alex: { name: "Alex Port FC", short: "APF", logoUrl: teamLogoUrl("apf") },
+  upper: { name: "Upper Egypt SC", short: "UES", logoUrl: teamLogoUrl("ues") },
+  redSea: { name: "Red Sea FC", short: "RSF", logoUrl: teamLogoUrl("rsf") },
+  egypt: { name: "Egypt", short: "EGY", logoUrl: teamLogoUrl("egy") },
+  morocco: { name: "Morocco", short: "MAR", logoUrl: teamLogoUrl("mar") },
 } satisfies Record<string, Team>;
 
 const venues = {

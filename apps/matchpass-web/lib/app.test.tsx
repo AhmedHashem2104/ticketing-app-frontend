@@ -7,13 +7,14 @@ import { describe, expect, it, vi } from "vitest";
 import { AppHeader } from "@/components/app-chrome";
 import { safeNextPath } from "./auth/session";
 import { buildIcs, buildReceipt } from "./downloads";
-import { FeatureFlagsProvider } from "./feature-flags/client";
+import { HydrateFeatureFlags } from "./feature-flags/client";
 import { allFlagsOff, type FeatureFlags } from "./feature-flags/schema";
 import { eventHref, routes } from "./routes";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
-  usePathname: () => "/",
+  usePathname: () => "/en",
+  useParams: () => ({ lang: "en" }),
   useSearchParams: () => new URLSearchParams(),
 }));
 
@@ -22,11 +23,11 @@ function wrap(flags: Partial<FeatureFlags>, children: ReactNode) {
   const queryClient = new QueryClient();
   queryClient.setQueryData(["me"], null);
   return (
-    <FeatureFlagsProvider flags={{ ...allFlagsOff, ...flags }}>
+    <HydrateFeatureFlags flags={{ ...allFlagsOff, ...flags }}>
       <QueryClientProvider client={queryClient}>
         <UIProvider>{children}</UIProvider>
       </QueryClientProvider>
-    </FeatureFlagsProvider>
+    </HydrateFeatureFlags>
   );
 }
 
@@ -37,7 +38,7 @@ describe("AppHeader feature flags", () => {
     expect(within(nav).queryByRole("link", { name: "Cinema" })).not.toBeInTheDocument();
     expect(within(nav).queryByRole("link", { name: "Resale" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Get your Fan ID" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Switch to Arabic" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "التبديل إلى العربية" })).not.toBeInTheDocument();
   });
 
   it("shows them when enabled", () => {
@@ -46,7 +47,7 @@ describe("AppHeader feature flags", () => {
     expect(within(nav).getByRole("link", { name: "Cinema" })).toHaveAttribute("href", "/events?tab=cinema");
     expect(within(nav).getByRole("link", { name: "Resale" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", { name: "Get your Fan ID" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Switch to Arabic" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "التبديل إلى العربية" })).toBeInTheDocument();
   });
 });
 
