@@ -38,8 +38,8 @@
       "description": "'Notify me' and 'Set reminder' buttons for upcoming sales."
     },
     "parkingUpsell": {
-      "enabled": true,
-      "description": "Parking add-on offer on the match order confirmation page."
+      "enabled": false,
+      "description": "Parking add-on offer on the match order confirmation page. Disabled until the parking purchase API exists (the button only changed local state)."
     },
     "notificationCentre": {
       "enabled": true,
