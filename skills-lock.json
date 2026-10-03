@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "Trello Automation": {
+      "source": "claude-office-skills/skills",
+      "sourceType": "github",
+      "skillPath": "trello-automation/SKILL.md",
+      "computedHash": "63e8306ca572ec63147c1e2bab896f625ce2345c0bc9d3c74487d9adf15b0cc3"
+    }
+  }
+}
