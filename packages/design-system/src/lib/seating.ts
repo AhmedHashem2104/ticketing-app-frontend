@@ -1,10 +1,16 @@
-import { formatMoney, segmentRow, type CinemaSeats, type HallSeatMap, type Showtime, type StadiumBlock } from "@repo/contracts";
+import { segmentRow, type CinemaSeats, type HallSeatMap, type Showtime, type StadiumBlock } from "@repo/contracts";
+import { createFormatters, createTranslator, type Formatters, type Translate } from "@repo/i18n";
 import type { SeatCell } from "../organisms/Seating";
 
 /**
  * Pure view-model helpers that turn API seat maps + the current selection into
- * `SeatMap` groups and "Your seats" rows. Kept free of React so apps and tests can reuse them.
+ * `SeatMap` groups and "Your seats" rows. Kept free of React so apps and tests can reuse them;
+ * pass `useI18n()`'s `{ t, f }` to get the labels in the visitor's language (English by default).
  */
+
+export type SeatI18n = { t: Translate; f: Formatters };
+
+const english: SeatI18n = { t: createTranslator("en"), f: createFormatters("en") };
 
 export type SeatSelection = { selected: string[]; message?: string };
 
@@ -15,11 +21,13 @@ export function toggleSeat(selected: readonly string[], seatId: string, max: num
   return { selected: [...selected, seatId] };
 }
 
+const seatBase = (t: Translate, row: string, number: number) => t("Row {row} seat {number}", { row, number });
+
 /* ---------- Stadium ---------- */
 
 export const stadiumSeatId = (blockId: string, row: string, seat: number) => `${blockId}-${row}-${seat}`;
 
-export function stadiumSeatGroups(block: StadiumBlock, selected: readonly string[]) {
+export function stadiumSeatGroups(block: StadiumBlock, selected: readonly string[], { t, f }: SeatI18n = english) {
   return [
     {
       rows: block.rows.map((row) => ({
@@ -27,11 +35,11 @@ export function stadiumSeatGroups(block: StadiumBlock, selected: readonly string
         segments: segmentRow(row.seats, [Math.floor(row.seats.length / 2)]).map((segment) =>
           segment.map(({ number, code }): SeatCell => {
             const id = stadiumSeatId(block.id, row.label, number);
-            const base = `Row ${row.label} seat ${number}`;
-            if (selected.includes(id)) return { id, number, state: "selected", label: `${base}, selected` };
-            if (code === "x") return { id, number, state: "taken", label: `${base}, taken` };
-            if (code === "w") return { id, number, state: "wheelchair", label: `${base}, wheelchair space, available` };
-            return { id, number, state: "available", label: `${base}, available, ${formatMoney(block.price)}` };
+            const base = seatBase(t, row.label, number);
+            if (selected.includes(id)) return { id, number, state: "selected", label: `${base}, ${t("selected")}` };
+            if (code === "x") return { id, number, state: "taken", label: `${base}, ${t("taken")}` };
+            if (code === "w") return { id, number, state: "wheelchair", label: `${base}, ${t("wheelchair space, available")}` };
+            return { id, number, state: "available", label: `${base}, ${t("available")}, ${f.money(block.price)}` };
           }),
         ),
       })),
@@ -40,8 +48,15 @@ export function stadiumSeatGroups(block: StadiumBlock, selected: readonly string
 }
 
 /** Finds `count` adjacent free seats near the centre of a block. */
-export function bestTogether(block: StadiumBlock, selected: readonly string[], count: number, max: number): SeatSelection {
-  if (selected.length + count > max) return { selected: [...selected], message: `Remove a seat first — you can have ${max} at most.` };
+export function bestTogether(
+  block: StadiumBlock,
+  selected: readonly string[],
+  count: number,
+  max: number,
+  { t }: Pick<SeatI18n, "t"> = english,
+): SeatSelection {
+  if (selected.length + count > max)
+    return { selected: [...selected], message: t("Remove a seat first — you can have {max} at most.", { max }) };
   const mid = Math.floor(block.rows.length / 2);
   const rowOrder = block.rows.map((_, i) => i).sort((a, b) => Math.abs(a - mid + 0.5) - Math.abs(b - mid + 0.5));
   for (const r of rowOrder) {
@@ -56,17 +71,17 @@ export function bestTogether(block: StadiumBlock, selected: readonly string[], c
       if (free && ids.every((id) => !selected.includes(id))) return { selected: [...selected, ...ids] };
     }
   }
-  return { selected: [...selected], message: `No ${count} seats together left in this block. Try another block.` };
+  return { selected: [...selected], message: t("No {count} seats together left in this block. Try another block.", { count }) };
 }
 
-export function stadiumPicked(blocks: readonly StadiumBlock[], selected: readonly string[]) {
+export function stadiumPicked(blocks: readonly StadiumBlock[], selected: readonly string[], { t, f }: SeatI18n = english) {
   return selected.map((id) => {
-    const [blockId, row, seat] = id.split("-");
+    const [blockId = "", row = "", seat = ""] = id.split("-");
     const block = blocks.find((b) => b.id === blockId);
     return {
       id,
-      label: `Block ${blockId} · Row ${row} · Seat ${seat}`,
-      detail: `${block?.category ?? ""} · ${formatMoney(block?.price ?? 0)}`,
+      label: t("Block {block} · Row {row} · Seat {seat}", { block: blockId, row, seat }),
+      detail: `${block?.category ?? ""} · ${f.money(block?.price ?? 0)}`,
       price: block?.price ?? 0,
     };
   });
@@ -76,27 +91,27 @@ export function stadiumPicked(blocks: readonly StadiumBlock[], selected: readonl
 
 export const hallSeatId = (row: string, seat: number) => `${row}-${seat}`;
 
-export function hallSeatGroups(map: HallSeatMap, selected: readonly string[], tierFilter: string) {
+export function hallSeatGroups(map: HallSeatMap, selected: readonly string[], tierFilter: string, { t, f }: SeatI18n = english) {
   return map.sections.map((section) => ({
     title: section.title,
     rows: section.rows.map((row) => {
-      const tier = map.tiers.find((t) => t.id === row.tierId)!;
+      const tier = map.tiers.find((x) => x.id === row.tierId)!;
       return {
         label: row.label,
         segments: segmentRow(row.seats, row.aisles).map((segment) =>
           segment.map(({ number, code }): SeatCell => {
             const id = hallSeatId(row.label, number);
-            const base = `Row ${row.label} seat ${number}`;
+            const base = seatBase(t, row.label, number);
             const dimmed = tierFilter !== "all" && tierFilter !== tier.id;
-            if (selected.includes(id)) return { id, number, state: "selected", label: `${base}, selected` };
-            if (code === "x") return { id, number, state: "taken", label: `${base}, taken`, dimmed };
+            if (selected.includes(id)) return { id, number, state: "selected", label: `${base}, ${t("selected")}` };
+            if (code === "x") return { id, number, state: "taken", label: `${base}, ${t("taken")}`, dimmed };
             if (code === "w")
-              return { id, number, state: "wheelchair", label: `${base}, wheelchair space, ${formatMoney(tier.price)}`, dimmed };
+              return { id, number, state: "wheelchair", label: `${base}, ${t("wheelchair space")}, ${f.money(tier.price)}`, dimmed };
             return {
               id,
               number,
               state: "available",
-              label: `${base}, ${tier.name}, ${formatMoney(tier.price)}`,
+              label: `${base}, ${tier.name}, ${f.money(tier.price)}`,
               fill: tier.swatch,
               edge: tier.edge,
               onFill: tier.onSwatch,
@@ -109,16 +124,16 @@ export function hallSeatGroups(map: HallSeatMap, selected: readonly string[], ti
   }));
 }
 
-export function hallPicked(map: HallSeatMap, selected: readonly string[]) {
+export function hallPicked(map: HallSeatMap, selected: readonly string[], { t, f }: SeatI18n = english) {
   return selected.map((id) => {
-    const [rowLabel, seat] = id.split("-");
+    const [rowLabel = "", seat = ""] = id.split("-");
     const section = map.sections.find((s) => s.rows.some((r) => r.label === rowLabel));
     const row = section?.rows.find((r) => r.label === rowLabel);
-    const tier = map.tiers.find((t) => t.id === row?.tierId);
+    const tier = map.tiers.find((x) => x.id === row?.tierId);
     return {
       id,
-      label: `${section?.id === "balcony" ? "Balcony" : "Stalls"} · Row ${rowLabel} · Seat ${seat}`,
-      detail: `${tier?.name ?? ""} · ${formatMoney(tier?.price ?? 0)}`,
+      label: t("{area} · Row {row} · Seat {seat}", { area: section?.id === "balcony" ? t("Balcony") : t("Stalls"), row: rowLabel, seat }),
+      detail: `${tier?.name ?? ""} · ${f.money(tier?.price ?? 0)}`,
       price: tier?.price ?? 0,
     };
   });
@@ -126,7 +141,7 @@ export function hallPicked(map: HallSeatMap, selected: readonly string[]) {
 
 /* ---------- Cinema ---------- */
 
-export function cinemaSeatGroups(seats: CinemaSeats, showtime: Showtime, selected: readonly string[]) {
+export function cinemaSeatGroups(seats: CinemaSeats, showtime: Showtime, selected: readonly string[], { t, f }: SeatI18n = english) {
   return [
     {
       rows: seats.rows.map((row) => ({
@@ -135,22 +150,22 @@ export function cinemaSeatGroups(seats: CinemaSeats, showtime: Showtime, selecte
         segments: segmentRow(row.seats, row.aisles).map((segment) =>
           segment.map(({ number, code }): SeatCell => {
             const id = hallSeatId(row.label, number);
-            const base = `Row ${row.label} seat ${number}`;
-            if (selected.includes(id)) return { id, number, state: "selected", label: `${base}, selected`, wide: row.vip };
-            if (code === "x") return { id, number, state: "taken", label: `${base}, taken`, wide: row.vip };
-            if (code === "w") return { id, number, state: "wheelchair", label: `${base}, wheelchair space` };
+            const base = seatBase(t, row.label, number);
+            if (selected.includes(id)) return { id, number, state: "selected", label: `${base}, ${t("selected")}`, wide: row.vip };
+            if (code === "x") return { id, number, state: "taken", label: `${base}, ${t("taken")}`, wide: row.vip };
+            if (code === "w") return { id, number, state: "wheelchair", label: `${base}, ${t("wheelchair space")}` };
             return row.vip
               ? {
                   id,
                   number,
                   state: "available",
-                  label: `${base}, VIP recliner, ${formatMoney(showtime.prices.vip)}`,
+                  label: `${base}, ${t("VIP recliner")}, ${f.money(showtime.prices.vip)}`,
                   fill: "#0E4D2F",
                   edge: "#0E4D2F",
                   onFill: "#FFFFFF",
                   wide: true,
                 }
-              : { id, number, state: "available", label: `${base}, ${formatMoney(showtime.prices.standard)}` };
+              : { id, number, state: "available", label: `${base}, ${f.money(showtime.prices.standard)}` };
           }),
         ),
       })),
@@ -158,11 +173,16 @@ export function cinemaSeatGroups(seats: CinemaSeats, showtime: Showtime, selecte
   ];
 }
 
-export function cinemaPicked(seats: CinemaSeats, showtime: Showtime, selected: readonly string[]) {
+export function cinemaPicked(seats: CinemaSeats, showtime: Showtime, selected: readonly string[], { t, f }: SeatI18n = english) {
   return selected.map((id) => {
-    const [rowLabel, seat] = id.split("-");
+    const [rowLabel = "", seat = ""] = id.split("-");
     const vip = seats.rows.find((r) => r.label === rowLabel)?.vip ?? false;
     const price = vip ? showtime.prices.vip : showtime.prices.standard;
-    return { id, label: `Row ${rowLabel} · Seat ${seat}`, detail: `${vip ? "VIP recliner" : "Standard"} · ${formatMoney(price)}`, price };
+    return {
+      id,
+      label: t("Row {row} · Seat {seat}", { row: rowLabel, seat }),
+      detail: `${vip ? t("VIP recliner") : t("Standard")} · ${f.money(price)}`,
+      price,
+    };
   });
 }

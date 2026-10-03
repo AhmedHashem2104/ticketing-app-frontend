@@ -9,6 +9,8 @@ services:
       PORT: "4000"
       CORS_ORIGIN: http://localhost:3000
       ENABLE_TEST_ROUTES: "false"
+      # Signs rotating entry QR codes. Use a long random secret from your secret store in real deployments.
+      QR_SECRET: ${QR_SECRET:-compose-local-qr-secret-change-me}
     ports:
       - "4000:4000"
 
@@ -18,6 +20,7 @@ services:
       dockerfile: apps/matchpass-web/Dockerfile
     environment:
       API_ORIGIN: http://mock-api:4000
+      SITE_URL: http://localhost:3000
     ports:
       - "3000:3000"
     volumes:

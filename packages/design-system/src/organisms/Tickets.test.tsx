@@ -1,10 +1,10 @@
 import { act, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { concertTicket, listings, matchTicket } from "../../test/fixtures";
+import { concertTicket, incomingTransfer, listings, matchTicket, outgoingTransfer, qrToken } from "../../test/fixtures";
 import { expectInvalidProps, expectNoA11yViolations, renderUI } from "../../test/utils";
 import { ListingsCard, ResaleForm, ResaleInfoPanel } from "./Resale";
-import { StubTicket, TicketActions, TicketDetailPanel, TicketListItem, TransferForm } from "./Tickets";
+import { StubTicket, TicketActions, TicketDetailPanel, TicketListItem, TransferForm, TransfersCard } from "./Tickets";
 
 describe("StubTicket", () => {
   it("describes the ticket for assistive tech and renders a QR when ready", async () => {
@@ -95,27 +95,85 @@ describe("TransferForm", () => {
 describe("TicketDetailPanel", () => {
   afterEach(() => vi.useRealTimers());
 
-  it("rotates the QR every 30 seconds and pages between tickets", async () => {
+  it("shows the server-signed QR, counts down and asks for a new token when it expires", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    let now = new Date("2026-10-01T10:00:09Z").getTime();
+    let now = new Date("2026-10-01T10:00:09+03:00").getTime();
     const onNext = vi.fn();
-    const { container } = renderUI(
-      <TicketDetailPanel ticket={matchTicket} position={{ index: 1, of: 2 }} onPrevious={() => {}} onNext={onNext} />,
+    const onExpire = vi.fn();
+    const filmTicket = { ...matchTicket, qrReady: true };
+    const { container, rerender } = renderUI(
+      <TicketDetailPanel
+        ticket={filmTicket}
+        position={{ index: 1, of: 2 }}
+        onPrevious={() => {}}
+        onNext={onNext}
+        qr={{ token: qrToken, onExpire }}
+      />,
       { now: () => now },
     );
     expect(screen.getByText(/Refreshes in 0:21/)).toBeInTheDocument();
-    const before = screen.getByRole("img", { name: "Ticket QR code" }).querySelector("path")!.getAttribute("d");
+    const before = screen.getByRole("img", { name: "Entry QR code" }).querySelector("path")!.getAttribute("d");
     act(() => {
       now += 22_000;
       vi.advanceTimersByTime(1000);
     });
-    const after = screen.getByRole("img", { name: "Ticket QR code" }).querySelector("path")!.getAttribute("d");
+    expect(onExpire).toHaveBeenCalledTimes(1);
+    rerender(
+      <TicketDetailPanel
+        ticket={filmTicket}
+        position={{ index: 1, of: 2 }}
+        onPrevious={() => {}}
+        onNext={onNext}
+        qr={{ token: { ...qrToken, token: `${qrToken.token}x`, expiresAt: "2026-10-01T10:01:00+03:00" }, onExpire }}
+      />,
+    );
+    const after = screen.getByRole("img", { name: "Entry QR code" }).querySelector("path")!.getAttribute("d");
     expect(after).not.toEqual(before);
     expect(screen.getByRole("button", { name: "Previous ticket" })).toBeDisabled();
     screen.getByRole("button", { name: "Next ticket" }).click();
     expect(onNext).toHaveBeenCalled();
     vi.useRealTimers();
     await expectNoA11yViolations(container);
+  });
+
+  it("shows loading and error states for the entry QR", () => {
+    const ready = { ...matchTicket, qrReady: true };
+    const { rerender } = renderUI(
+      <TicketDetailPanel
+        ticket={ready}
+        position={{ index: 1, of: 1 }}
+        onPrevious={() => {}}
+        onNext={() => {}}
+        qr={{ onExpire: () => {} }}
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Loading your entry QR");
+    rerender(
+      <TicketDetailPanel
+        ticket={ready}
+        position={{ index: 1, of: 1 }}
+        onPrevious={() => {}}
+        onNext={() => {}}
+        qr={{ error: "No connection — retrying", onExpire: () => {} }}
+      />,
+    );
+    expect(screen.getByText("No connection — retrying")).toBeInTheDocument();
+  });
+
+  it("explains a pending transfer and lets the sender cancel it", async () => {
+    const onCancel = vi.fn();
+    const { user } = renderUI(
+      <TicketDetailPanel
+        ticket={{ ...concertTicket, status: "transfer_pending" }}
+        position={{ index: 1, of: 1 }}
+        onPrevious={() => {}}
+        onNext={() => {}}
+        onCancelTransfer={onCancel}
+      />,
+    );
+    expect(screen.getByText(/Waiting for the recipient to accept/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Cancel transfer" }));
+    expect(onCancel).toHaveBeenCalled();
   });
 
   it("shows the locked state and toggles the transfer form", async () => {
@@ -209,5 +267,32 @@ describe("Resale", () => {
 
   it("requires tickets to sell", () => {
     expectInvalidProps(() => renderUI(<ResaleForm tickets={[]} payoutOptions={payoutOptions} onSubmit={() => {}} />), /no tickets/);
+  });
+});
+
+describe("TransfersCard", () => {
+  it("lets the recipient accept or decline and the sender cancel", async () => {
+    const onAccept = vi.fn();
+    const onDecline = vi.fn();
+    const onCancel = vi.fn();
+    const { user, container } = renderUI(
+      <TransfersCard transfers={[incomingTransfer, outgoingTransfer]} onAccept={onAccept} onDecline={onDecline} onCancel={onCancel} />,
+    );
+    expect(screen.getByText("From Omar Khaled", { exact: false })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Accept ticket for Nile FC vs Delta SC" }));
+    expect(onAccept).toHaveBeenCalledWith("trf_1");
+    await user.click(screen.getByRole("button", { name: "Decline ticket for Nile FC vs Delta SC" }));
+    expect(onDecline).toHaveBeenCalledWith("trf_1");
+    await user.click(screen.getByRole("button", { name: "Cancel transfer for Layla Nour Live" }));
+    expect(onCancel).toHaveBeenCalledWith("trf_2");
+    await expectNoA11yViolations(container);
+  });
+
+  it("hides actions once a transfer is settled and shows an empty state", () => {
+    const { rerender } = renderUI(<TransfersCard transfers={[{ ...incomingTransfer, status: "accepted" }]} onAccept={() => {}} />);
+    expect(screen.getByText("Accepted")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Accept/ })).not.toBeInTheDocument();
+    rerender(<TransfersCard transfers={[]} emptyLabel="Nothing here" />);
+    expect(screen.getByText("Nothing here")).toBeInTheDocument();
   });
 });

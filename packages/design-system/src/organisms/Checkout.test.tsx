@@ -1,8 +1,8 @@
 import { screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { hold, order } from "../../test/fixtures";
+import { expiredOrder, failedOrder, fawryOrder, hold, order, walletPendingOrder } from "../../test/fixtures";
 import { expectInvalidProps, expectNoA11yViolations, renderUI } from "../../test/utils";
-import { CheckoutForm, NextSteps, OrderHero, OrderSummaryStrip, UpsellBanner } from "./Checkout";
+import { CheckoutForm, NextSteps, OrderHero, OrderPaymentStatus, OrderSummaryStrip, UpsellBanner } from "./Checkout";
 
 describe("CheckoutForm", () => {
   it("renders holders, methods and the summary", async () => {
@@ -15,41 +15,15 @@ describe("CheckoutForm", () => {
     await expectNoA11yViolations(container);
   });
 
-  it("validates card details with zod and focuses errors on submit", async () => {
+  it("never collects card details — cards are paid on the provider's hosted page", async () => {
     const onSubmit = vi.fn();
     const { user } = renderUI(<CheckoutForm hold={hold} onSubmit={onSubmit} />);
-    await user.type(screen.getByLabelText("Card number"), "4242424242424241");
-    expect(screen.getByLabelText("Card number")).toHaveValue("4242 4242 4242 4241");
-    await user.type(screen.getByLabelText("Expiry"), "0120");
-    expect(screen.getByLabelText("Expiry")).toHaveValue("01 / 20");
-    await user.click(screen.getByRole("button", { name: "Pay 530 EGP" }));
-    expect(await screen.findByText("This card number isn't valid")).toBeInTheDocument();
-    expect(screen.getByText("This card has expired")).toBeInTheDocument();
-    expect(screen.getByText("Enter the 3 or 4 digit security code")).toBeInTheDocument();
-    expect(screen.getByLabelText("Card number")).toHaveAttribute("aria-invalid", "true");
-    expect(onSubmit).not.toHaveBeenCalled();
-  });
-
-  it("submits a valid card payment as the API payload", async () => {
-    const onSubmit = vi.fn();
-    const { user } = renderUI(<CheckoutForm hold={hold} onSubmit={onSubmit} />);
-    await user.type(screen.getByLabelText("Card number"), "4242424242424242");
-    await user.type(screen.getByLabelText("Expiry"), "1249");
-    await user.type(screen.getByLabelText("CVC"), "123");
-    await user.type(screen.getByLabelText("Name on card"), "Omar Khaled");
+    expect(screen.queryByLabelText("Card number")).not.toBeInTheDocument();
+    expect(screen.getByText(/enter your card on our payment provider’s secure page/)).toBeInTheDocument();
+    expect(screen.getByText(/Your card details never reach Matchpass/)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Pay 530 EGP" }));
     await waitFor(() => expect(onSubmit).toHaveBeenCalled());
-    expect(onSubmit.mock.calls[0]![0]).toEqual({
-      payment: {
-        method: "card",
-        cardNumber: "4242424242424242",
-        expiry: "12 / 49",
-        cvc: "123",
-        nameOnCard: "Omar Khaled",
-        saveCard: false,
-      },
-      acceptTerms: true,
-    });
+    expect(onSubmit.mock.calls[0]![0]).toEqual({ payment: { method: "card" }, acceptTerms: true });
   });
 
   it("switches payment methods, labels and requires terms", async () => {
@@ -116,7 +90,44 @@ describe("order confirmation", () => {
   });
 
   it("shows the Fawry reference for unpaid orders", () => {
-    renderUI(<OrderSummaryStrip order={{ ...order, status: "awaiting_payment", tickets: [], fawryReference: "712345678" }} />);
+    renderUI(<OrderSummaryStrip order={fawryOrder} />);
     expect(screen.getByText("712345678")).toBeInTheDocument();
+  });
+});
+
+describe("OrderPaymentStatus", () => {
+  it("waits for wallet approval and explains what to do", async () => {
+    const { container } = renderUI(<OrderPaymentStatus order={walletPendingOrder} />);
+    expect(screen.getByRole("heading", { level: 1, name: "Waiting for your payment" })).toBeInTheDocument();
+    expect(screen.getByText(/Approve the payment request/)).toBeInTheDocument();
+    expect(screen.getByText("This page updates by itself once the payment arrives.")).toHaveAttribute("role", "status");
+    await expectNoA11yViolations(container);
+  });
+
+  it("shows the Fawry bill with its deadline", () => {
+    renderUI(<OrderPaymentStatus order={fawryOrder} />);
+    expect(screen.getByRole("heading", { name: "Almost there" })).toBeInTheDocument();
+    expect(screen.getByText("712345678")).toBeInTheDocument();
+    expect(screen.getByText("Pay before Sat 3 Oct at 10:05")).toBeInTheDocument();
+  });
+
+  it("sends unfinished card payments back to the hosted page", () => {
+    renderUI(<OrderPaymentStatus order={{ ...walletPendingOrder, payment: { method: "card", redirectUrl: "/api/payments/abc" } }} />);
+    expect(screen.getByRole("link", { name: "Continue to secure payment" })).toHaveAttribute("href", "/api/payments/abc");
+  });
+
+  it("offers a retry for failed payments and a restart for expired orders", async () => {
+    const { container, rerender } = renderUI(<OrderPaymentStatus order={failedOrder} retryHref="/checkout/hold_1" eventHref="/events/x" />);
+    expect(screen.getByRole("heading", { name: "Payment didn’t go through" })).toBeInTheDocument();
+    expect(screen.getByText(/bank declined/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Try paying again" })).toHaveAttribute("href", "/checkout/hold_1");
+    await expectNoA11yViolations(container);
+    rerender(<OrderPaymentStatus order={expiredOrder} retryHref="/checkout/hold_1" eventHref="/events/x" />);
+    expect(screen.getByRole("heading", { name: "This order expired" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Choose tickets again" })).toHaveAttribute("href", "/events/x");
+  });
+
+  it("refuses paid orders", () => {
+    expectInvalidProps(() => renderUI(<OrderPaymentStatus order={order} />), /paid orders/);
   });
 });

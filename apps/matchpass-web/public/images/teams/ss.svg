@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="SS crest">
+  <defs><clipPath id="s"><path d="M60 6 L108 20 V58 C108 88 87 106 60 116 C33 106 12 88 12 58 V20 Z"/></clipPath></defs>
+  <g clip-path="url(#s)">
+    <rect width="120" height="120" fill="#121512"/>
+    <path d="M60 18 L66 34 L83 34 L69 44 L74 60 L60 50 L46 60 L51 44 L37 34 L54 34 Z" fill="#F06A1D"/><rect y="70" width="120" height="50" fill="#F06A1D"/>
+  </g>
+  <path d="M60 6 L108 20 V58 C108 88 87 106 60 116 C33 106 12 88 12 58 V20 Z" fill="none" stroke="#121512" stroke-width="5"/>
+  <rect x="22" y="74" width="76" height="26" rx="6" fill="#fff"/>
+  <text x="60" y="93" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="20" fill="#121512">SS</text>
+</svg>

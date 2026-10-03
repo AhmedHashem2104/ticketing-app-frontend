@@ -2,11 +2,13 @@
 
 import { citySchema, type City, type EventTab } from "@repo/contracts";
 import { EventsPage, type EventFilters } from "@repo/design-system";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { AppFooter, AppHeader } from "@/components/app-chrome";
+import { useFeatureFlags } from "@/lib/feature-flags/client";
 import { useEvents } from "@/lib/queries";
 import { eventHref } from "@/lib/routes";
+import { useLocalizedRouter } from "@/lib/i18n/navigation";
 
 const DEFAULT_FACETS: Record<EventTab, { categories: string[]; cities: City[] }> = {
   matches: {
@@ -17,6 +19,7 @@ const DEFAULT_FACETS: Record<EventTab, { categories: string[]; cities: City[] }>
     categories: ["Concerts", "Festivals", "Comedy", "Theatre", "Classical", "Family"],
     cities: ["cairo", "alexandria", "canal", "red_sea"],
   },
+  cinema: { categories: ["Cinema"], cities: ["cairo"] },
 };
 
 const list = (value: string | null) => (value ? value.split(",").filter(Boolean) : []);
@@ -24,9 +27,11 @@ const list = (value: string | null) => (value ? value.split(",").filter(Boolean)
 /** Browse page — all filter state lives in the URL so results are shareable and survive refresh. */
 export function EventsView() {
   const params = useSearchParams();
-  const router = useRouter();
+  const router = useLocalizedRouter();
   const pathname = usePathname();
-  const tab: EventTab = params.get("tab") === "concerts" ? "concerts" : "matches";
+  const flags = useFeatureFlags();
+  const requested = params.get("tab");
+  const tab: EventTab = requested === "concerts" ? "concerts" : requested === "cinema" && flags.cinema ? "cinema" : "matches";
   const q = params.get("q") ?? "";
   const filters: EventFilters = useMemo(
     () => ({
@@ -71,6 +76,7 @@ export function EventsView() {
       header={<AppHeader active={tab} />}
       footer={<AppFooter />}
       tab={tab}
+      showCinema={flags.cinema}
       onTabChange={(next) => {
         setSearch("");
         router.replace(`${pathname}?tab=${next}`, { scroll: false });

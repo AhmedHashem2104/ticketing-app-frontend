@@ -1,7 +1,6 @@
 import {
   countAvailable,
   fanSchema,
-  formatMoney,
   hallTierSchema,
   showtimeSchema,
   stadiumBlockSchema,
@@ -19,6 +18,7 @@ import { Legend, SummaryRow } from "../molecules/Content";
 import { FanOption, PickedSeatRow, TicketTypeRow } from "../molecules/Events";
 import { validateProps, zClassName, zColor, zFn, zHref, zNode } from "../lib/props";
 import { cn } from "../lib/utils";
+import { useI18n } from "../lib/provider";
 
 /* ---------- ZonePicker ---------- */
 
@@ -38,6 +38,7 @@ export type ZonePickerProps = z.input<typeof zonePickerPropsSchema>;
 export function ZonePicker(props: ZonePickerProps) {
   validateProps("ZonePicker", zonePickerPropsSchema, props);
   const { zones, value, onValueChange, exactSeatsHref, className } = props;
+  const { t, f } = useI18n();
   const zone = (id: string) => zones.find((z) => z.id === id);
   const zoneButton = (id: string, area: string, vertical?: "up" | "down") => {
     const z = zone(id);
@@ -50,7 +51,7 @@ export function ZonePicker(props: ZonePickerProps) {
         aria-pressed={selected}
         disabled={z.restricted}
         onClick={() => onValueChange(z.id)}
-        aria-label={`${z.name}, ${z.where}, ${formatMoney(z.price)}${z.restricted ? `, ${z.restrictedLabel ?? "not for sale to you"}` : `, ${z.availabilityLabel}`}`}
+        aria-label={`${z.name}, ${z.where}, ${f.money(z.price)}, ${z.restricted ? (z.restrictedLabel ?? t("not for sale to you")) : z.availabilityLabel}`}
         className={cn(
           "flex flex-col items-center justify-center gap-0.5 rounded-xl px-1 text-sm font-semibold transition-colors sm:text-[15px]",
           area,
@@ -69,7 +70,7 @@ export function ZonePicker(props: ZonePickerProps) {
           <>
             {z.where} · {z.short.replace("Category ", "Cat ")}
             <span className="text-[13px] font-normal">
-              {formatMoney(z.price)} · {z.availabilityLabel.toLowerCase()}
+              {f.money(z.price)} · {z.availabilityLabel.toLowerCase()}
             </span>
           </>
         ) : id === "away" ? (
@@ -78,9 +79,9 @@ export function ZonePicker(props: ZonePickerProps) {
             <span className="text-[13px]">{z.restrictedLabel}</span>
           </>
         ) : id === "vip" ? (
-          `${z.short} · ${formatMoney(z.price)}`
+          `${z.short} · ${f.money(z.price)}`
         ) : (
-          `${z.where} · ${z.short.replace("Category ", "Cat ")} · ${formatMoney(z.price)}`
+          `${z.where} · ${z.short.replace("Category ", "Cat ")} · ${f.money(z.price)}`
         )}
       </button>
     );
@@ -92,17 +93,18 @@ export function ZonePicker(props: ZonePickerProps) {
     >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <Heading as="h1" id="zone-title" size="xl">
-          Choose your zone
+          {t("Choose your zone")}
         </Heading>
         {exactSeatsHref ? (
           <AppLink href={exactSeatsHref} tone="pitch" underline className="flex min-h-11 items-center text-sm">
-            Pick exact seats by block →
+            {t("Pick exact seats by block")} <span className="inline-block rtl:-scale-x-100">→</span>
           </AppLink>
         ) : null}
       </div>
       <div
         role="group"
-        aria-label="Stadium zones"
+        aria-label={t("Stadium zones")}
+        dir="ltr"
         className="grid grid-cols-[56px_80px_minmax(0,1fr)_80px] grid-rows-[100px_260px_100px] gap-2 sm:grid-cols-[84px_120px_minmax(0,1fr)_120px] sm:grid-rows-[100px_320px_100px]"
       >
         {zoneButton("cat3", "col-[2/5] row-[1/2]")}
@@ -113,17 +115,17 @@ export function ZonePicker(props: ZonePickerProps) {
           className="relative col-[3/4] row-[2/3] flex items-center justify-center rounded-lg border-[3px] border-white bg-forest"
         >
           <div className="size-[70px] rounded-full border-[3px] border-white sm:size-[90px]" />
-          <div className="absolute inset-y-0 left-1/2 border-l-[3px] border-white" />
+          <div className="absolute inset-y-0 left-1/2 border-s-[3px] border-white" />
         </div>
         {zoneButton("cat2", "col-[4/5] row-[2/3]", "down")}
         {zoneButton("away", "col-[2/5] row-[3/4]")}
       </div>
       <Legend
         items={[
-          { label: "Selected", swatch: { fill: "#0E4D2F" } },
-          { label: "Available", swatch: { fill: "#D5E6DA" } },
-          { label: "Few left", swatch: { fill: "#FCE8A6" } },
-          { label: "Not for sale to you", swatch: { fill: "#E7E4DA", border: "dashed", borderColor: "#8C8F88" } },
+          { label: t("Selected"), swatch: { fill: "#0E4D2F" } },
+          { label: t("Available"), swatch: { fill: "#D5E6DA" } },
+          { label: t("Few left"), swatch: { fill: "#FCE8A6" } },
+          { label: t("Not for sale to you"), swatch: { fill: "#E7E4DA", border: "dashed", borderColor: "#8C8F88" } },
         ]}
       />
     </section>
@@ -139,22 +141,23 @@ export type ZoneSummaryCardProps = z.input<typeof zoneSummaryCardPropsSchema>;
 export function ZoneSummaryCard(props: ZoneSummaryCardProps) {
   validateProps("ZoneSummaryCard", zoneSummaryCardPropsSchema, props);
   const { zone, className } = props;
+  const { t, f } = useI18n();
   return (
     <section
-      aria-label="Selected zone"
+      aria-label={t("Selected zone")}
       aria-live="polite"
       className={cn("flex flex-col gap-1.5 rounded-2xl border border-line bg-white p-[22px]", className)}
     >
-      <Eyebrow size="sm">Selected zone</Eyebrow>
+      <Eyebrow size="sm">{t("Selected zone")}</Eyebrow>
       <Heading as="h2" size="lg">
         {zone.name}
       </Heading>
       <span className="text-sm text-sub">
-        {zone.where} · Gates {zone.gates}
+        {zone.where} · {t("Gates {gates}", { gates: zone.gates })}
       </span>
       <span className="text-sm text-sub">{zone.note}</span>
       <span className="pt-1.5 text-xl font-semibold">
-        {formatMoney(zone.price)} <span className="text-sm font-normal text-muted-ink">per ticket</span>
+        {f.money(zone.price)} <span className="text-sm font-normal text-muted-ink">{t("per ticket")}</span>
       </span>
     </section>
   );
@@ -170,6 +173,8 @@ export const fanSelectorPropsSchema = z
     max: z.number().int().positive(),
     linkFanHref: zHref.optional(),
     error: z.string().optional(),
+    /** Fans who can't get a ticket for this event, keyed by fan id, with the reason. */
+    unavailable: z.record(z.string(), z.string()).optional(),
     className: zClassName,
   })
   .refine((p) => p.value.length <= p.max, { error: "More fans selected than allowed", path: ["value"] });
@@ -179,16 +184,17 @@ export type FanSelectorProps = z.input<typeof fanSelectorPropsSchema>;
 /** Organism · FanSelector — "Who's going?" with one ticket per approved Fan ID. */
 export function FanSelector(props: FanSelectorProps) {
   validateProps("FanSelector", fanSelectorPropsSchema, props);
-  const { fans, value, onValueChange, max, linkFanHref, error, className } = props;
+  const { fans, value, onValueChange, max, linkFanHref, error, unavailable, className } = props;
   const full = value.length >= max;
+  const { t } = useI18n();
   return (
     <fieldset
       className={cn("m-0 flex flex-col gap-2 rounded-2xl border border-line bg-white p-[22px]", className)}
       aria-describedby="fans-hint"
     >
-      <legend className="float-left pb-1 text-base font-semibold">Who&apos;s going?</legend>
+      <legend className="float-start pb-1 text-base font-semibold">{t("Who's going?")}</legend>
       <span id="fans-hint" className="clear-both text-[13px] text-muted-ink">
-        One ticket per Fan ID. Up to {max} per order.
+        {t("One ticket per Fan ID. Up to {max} per order.", { max })}
       </span>
       {fans.map((fan) => {
         const checked = value.includes(fan.id);
@@ -198,18 +204,19 @@ export function FanSelector(props: FanSelectorProps) {
             fan={fan}
             checked={checked}
             disabled={!checked && full}
+            unavailableReason={unavailable?.[fan.id]}
             onCheckedChange={(on) => onValueChange(on ? [...value, fan.id] : value.filter((id) => id !== fan.id))}
           />
         );
       })}
       {error ? (
         <p role="alert" className="text-[13px] text-rose-ink">
-          {error}
+          {t(error)}
         </p>
       ) : null}
       {linkFanHref ? (
         <AppLink href={linkFanHref} tone="pitch" className="flex min-h-11 items-center text-sm">
-          + Link another fan
+          {t("+ Link another fan")}
         </AppLink>
       ) : null}
     </fieldset>
@@ -257,17 +264,21 @@ function Cta({ cta }: { cta: z.infer<typeof ctaSchema> }) {
 export function OrderSummaryCard(props: OrderSummaryCardProps) {
   validateProps("OrderSummaryCard", orderSummaryCardPropsSchema, props);
   const { lines, total, cta, note, error, children, className } = props;
+  const { t } = useI18n();
   return (
-    <section aria-label="Order summary" className={cn("flex flex-col gap-2.5 rounded-2xl border border-line bg-white p-[22px]", className)}>
+    <section
+      aria-label={t("Order summary")}
+      className={cn("flex flex-col gap-2.5 rounded-2xl border border-line bg-white p-[22px]", className)}
+    >
       {children}
       {lines.map((line) => (
         <SummaryRow key={line.label} label={line.label} amount={line.amount} />
       ))}
-      <SummaryRow label="Total" amount={total} variant="total" />
+      <SummaryRow label={t("Total")} amount={total} variant="total" />
       {note ? <span className="text-[13px] text-muted-ink">{note}</span> : null}
       {error ? (
         <p role="alert" className="rounded-lg bg-rose-soft px-3 py-2.5 text-[13px] text-rose-ink">
-          {error}
+          {t(error)}
         </p>
       ) : null}
       <Cta cta={cta} />
@@ -304,6 +315,7 @@ const blockPosition = (block: StadiumBlock) => {
 export function StadiumBlockMap(props: StadiumBlockMapProps) {
   validateProps("StadiumBlockMap", stadiumBlockMapPropsSchema, props);
   const { blocks, value, onValueChange, className } = props;
+  const { t } = useI18n();
   return (
     <section
       aria-labelledby="block-title"
@@ -311,13 +323,14 @@ export function StadiumBlockMap(props: StadiumBlockMapProps) {
     >
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <Heading id="block-title" size="md">
-          1 · Pick a block
+          {t("1 · Pick a block")}
         </Heading>
-        <span className="text-[13px] text-muted-ink">Colour shows how many seats are left</span>
+        <span className="text-[13px] text-muted-ink">{t("Colour shows how many seats are left")}</span>
       </div>
       <div
         role="group"
-        aria-label="Stadium blocks"
+        aria-label={t("Stadium blocks")}
+        dir="ltr"
         className="grid grid-cols-[56px_repeat(4,minmax(0,1fr))_56px] grid-rows-[58px_repeat(4,54px)_58px] gap-1.5 sm:grid-cols-[76px_repeat(4,minmax(0,1fr))_76px]"
       >
         {blocks.map((block) => {
@@ -342,7 +355,11 @@ export function StadiumBlockMap(props: StadiumBlockMapProps) {
               aria-pressed={selected}
               disabled={block.away || soldOut}
               onClick={() => onValueChange(block.id)}
-              aria-label={`Block ${block.id}, ${block.sideName}, ${block.away ? "away fans only" : soldOut ? "sold out" : `${left} seats left`}`}
+              aria-label={t("Block {id}, {side}, {status}", {
+                id: block.id,
+                side: block.sideName,
+                status: block.away ? t("away fans only") : soldOut ? t("sold out") : t("{count} seats left", { count: left }),
+              })}
               style={blockPosition(block)}
               className={cn(
                 "flex flex-col items-center justify-center gap-px rounded-lg p-0.5 text-[13px] leading-tight font-semibold",
@@ -351,7 +368,9 @@ export function StadiumBlockMap(props: StadiumBlockMapProps) {
               )}
             >
               {block.id}
-              <span className="text-[11px] font-medium">{block.away ? "Away" : soldOut ? "Sold out" : `${left} left`}</span>
+              <span className="text-[11px] font-medium">
+                {block.away ? t("Away") : soldOut ? t("Sold out") : t("{count} left", { count: left })}
+              </span>
             </button>
           );
         })}
@@ -360,18 +379,18 @@ export function StadiumBlockMap(props: StadiumBlockMapProps) {
           className="relative col-[2/6] row-[2/6] flex items-center justify-center rounded-md border-[3px] border-white bg-forest"
         >
           <div className="size-[70px] rounded-full border-[3px] border-white" />
-          <div className="absolute inset-y-0 left-1/2 border-l-[3px] border-white" />
-          <div className="absolute inset-y-[30%] left-0 w-[34px] border-[3px] border-l-0 border-white" />
-          <div className="absolute inset-y-[30%] right-0 w-[34px] border-[3px] border-r-0 border-white" />
+          <div className="absolute inset-y-0 left-1/2 border-s-[3px] border-white" />
+          <div className="absolute inset-y-[30%] start-0 w-[34px] border-[3px] border-s-0 border-white" />
+          <div className="absolute inset-y-[30%] end-0 w-[34px] border-[3px] border-e-0 border-white" />
         </div>
       </div>
       <Legend
         items={[
-          { label: "Plenty left", swatch: { fill: "#D5E6DA" } },
-          { label: "Filling up", swatch: { fill: "#FCE8A6" } },
-          { label: "Almost gone", swatch: { fill: "#F2C29B" } },
-          { label: "Sold out", swatch: { fill: "#D6D2C6" } },
-          { label: "Away fans only", swatch: { fill: "#F3F1EA", border: "dashed", borderColor: "#8C8F88" } },
+          { label: t("Plenty left"), swatch: { fill: "#D5E6DA" } },
+          { label: t("Filling up"), swatch: { fill: "#FCE8A6" } },
+          { label: t("Almost gone"), swatch: { fill: "#F2C29B" } },
+          { label: t("Sold out"), swatch: { fill: "#D6D2C6" } },
+          { label: t("Away fans only"), swatch: { fill: "#F3F1EA", border: "dashed", borderColor: "#8C8F88" } },
         ]}
       />
     </section>
@@ -417,6 +436,7 @@ export type SeatMapProps = z.input<typeof seatMapPropsSchema>;
  */
 export function SeatMap(props: SeatMapProps) {
   validateProps("SeatMap", seatMapPropsSchema, props);
+  const { t } = useI18n();
   const { label, groups, onToggle, size = "md", header, className } = props;
   const container = useRef<HTMLDivElement>(null);
   const grid = useMemo(() => groups.flatMap((g) => g.rows.map((r) => r.segments.flat())), [groups]);
@@ -469,7 +489,7 @@ export function SeatMap(props: SeatMapProps) {
     <div className={cn("flex flex-col gap-4", className)}>
       {header}
       <p id="seatmap-help" className="sr-only">
-        Use the arrow keys to move between seats and Enter or Space to choose a seat.
+        {t("Use the arrow keys to move between seats and Enter or Space to choose a seat.")}
       </p>
       {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- keyboard delegation for the seat buttons inside */}
       <div
@@ -477,6 +497,7 @@ export function SeatMap(props: SeatMapProps) {
         role="group"
         aria-label={label}
         aria-describedby="seatmap-help"
+        dir="ltr"
         onKeyDown={onKeyDown}
         className="flex flex-col items-center gap-[18px] overflow-x-auto pb-1"
       >
@@ -487,7 +508,7 @@ export function SeatMap(props: SeatMapProps) {
               <div
                 key={row.label}
                 role="group"
-                aria-label={`Row ${row.label}`}
+                aria-label={t("Row {row}", { row: row.label })}
                 className={cn("flex items-center", gap, row.spaced && "mt-3.5")}
               >
                 <span aria-hidden="true" className="w-[18px] text-center font-mono text-xs text-muted-ink">
@@ -552,21 +573,8 @@ export type PickedSeatsPanelProps = z.input<typeof pickedSeatsPanelPropsSchema>;
 /** Organism · PickedSeatsPanel — chosen seats, validation message, fees and total. */
 export function PickedSeatsPanel(props: PickedSeatsPanelProps) {
   validateProps("PickedSeatsPanel", pickedSeatsPanelPropsSchema, props);
-  const {
-    title,
-    countLabel,
-    emptyText,
-    seats,
-    onRemove,
-    message,
-    feeLabel = "Service fee",
-    fees,
-    total,
-    cta,
-    prefix,
-    showSwatch,
-    className,
-  } = props;
+  const { t, f } = useI18n();
+  const { title, countLabel, emptyText, seats, onRemove, message, feeLabel, fees, total, cta, prefix, showSwatch, className } = props;
   return (
     <section
       aria-labelledby="picked-title"
@@ -598,14 +606,14 @@ export function PickedSeatsPanel(props: PickedSeatsPanelProps) {
       )}
       {message ? (
         <p role="alert" className="rounded-lg bg-rose-soft px-3 py-2.5 text-[13px] text-rose-ink">
-          {message}
+          {t(message)}
         </p>
       ) : null}
       <div className="flex justify-between border-t border-line pt-2.5 text-sm">
-        <span>{feeLabel}</span>
-        <span className="font-mono">{formatMoney(fees)}</span>
+        <span>{feeLabel ?? t("Service fee")}</span>
+        <span className="font-mono">{f.money(fees)}</span>
       </div>
-      <SummaryRow label="Total" amount={total} variant="total" className="border-0 pt-0" />
+      <SummaryRow label={t("Total")} amount={total} variant="total" className="border-0 pt-0" />
       <Cta cta={cta} />
     </section>
   );
@@ -635,6 +643,7 @@ const arenaAreas: Record<string, { area: string; light?: boolean }[]> = {
 export function ArenaMap(props: ArenaMapProps) {
   validateProps("ArenaMap", arenaMapPropsSchema, props);
   const { ticketTypes, focusedId, onFocusChange, note, className } = props;
+  const { t } = useI18n();
   return (
     <section
       aria-labelledby="venue-map-title"
@@ -642,19 +651,20 @@ export function ArenaMap(props: ArenaMapProps) {
     >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <Heading as="h1" id="venue-map-title" size="xl">
-          Venue map
+          {t("Venue map")}
         </Heading>
-        <span className="text-sm text-muted-ink">Tap an area to see its tickets</span>
+        <span className="text-sm text-muted-ink">{t("Tap an area to see its tickets")}</span>
       </div>
       <div
         aria-hidden="true"
         className="flex h-[52px] items-center justify-center rounded-[10px] bg-ink font-display text-[22px] font-extrabold tracking-[0.2em] text-white"
       >
-        STAGE
+        {t("STAGE")}
       </div>
       <div
         role="group"
-        aria-label="Venue areas"
+        aria-label={t("Venue areas")}
+        dir="ltr"
         className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)] grid-rows-[120px_170px_90px_64px] gap-2"
       >
         {ticketTypes.flatMap((type) =>
@@ -706,8 +716,12 @@ export function TicketTypePicker(props: TicketTypePickerProps) {
   validateProps("TicketTypePicker", ticketTypePickerPropsSchema, props);
   const { ticketTypes, quantities, onQuantitiesChange, max, focusedId, onFocusChange, className } = props;
   const count = Object.values(quantities).reduce((a, b) => a + b, 0);
+  const { t } = useI18n();
   return (
-    <section aria-label="Ticket types" className={cn("flex flex-col gap-2 rounded-2xl border border-line bg-white p-[18px]", className)}>
+    <section
+      aria-label={t("Ticket types")}
+      className={cn("flex flex-col gap-2 rounded-2xl border border-line bg-white p-[18px]", className)}
+    >
       {ticketTypes.map((type) => {
         const qty = quantities[type.id] ?? 0;
         return (
@@ -746,15 +760,16 @@ export function ShowtimePicker(props: ShowtimePickerProps) {
   const current = showtimes.find((s) => s.id === value)!;
   const days = [...new Map(showtimes.map((s) => [s.date, s])).values()];
   const times = showtimes.filter((s) => s.date === current.date);
+  const { t } = useI18n();
   return (
     <section
       aria-labelledby="showtime-title"
       className={cn("flex flex-col gap-3.5 rounded-2xl border border-line bg-white p-4 sm:p-[22px]", className)}
     >
       <Heading id="showtime-title" size="md">
-        1 · Day &amp; showtime
+        {t("1 · Day & showtime")}
       </Heading>
-      <div role="group" aria-label="Day" className="flex flex-wrap gap-2">
+      <div role="group" aria-label={t("Day")} className="flex flex-wrap gap-2">
         {days.map((day) => {
           const on = day.date === current.date;
           return (
@@ -775,7 +790,7 @@ export function ShowtimePicker(props: ShowtimePickerProps) {
           );
         })}
       </div>
-      <div role="group" aria-label="Showtime" className="flex flex-wrap gap-2">
+      <div role="group" aria-label={t("Showtime")} className="flex flex-wrap gap-2">
         {times.map((time) => {
           const on = time.id === value;
           const availTone = on
@@ -823,13 +838,14 @@ export type TierPriceListProps = z.input<typeof tierPriceListPropsSchema>;
 export function TierPriceList(props: TierPriceListProps) {
   validateProps("TierPriceList", tierPriceListPropsSchema, props);
   const { tiers, className } = props;
+  const { t, f } = useI18n();
   return (
     <section
       aria-labelledby="prices-title"
       className={cn("flex flex-col gap-2.5 rounded-2xl border border-line bg-white p-[22px]", className)}
     >
       <h2 id="prices-title" className="text-lg font-semibold">
-        Prices
+        {t("Prices")}
       </h2>
       <ul className="m-0 flex list-none flex-col gap-2.5 p-0">
         {tiers.map((tier) => (
@@ -842,7 +858,7 @@ export function TierPriceList(props: TierPriceListProps) {
             <span className="flex-1">
               <strong>{tier.name}</strong> · {tier.where}
             </span>
-            <span className="font-mono">{formatMoney(tier.price)}</span>
+            <span className="font-mono">{f.money(tier.price)}</span>
           </li>
         ))}
       </ul>

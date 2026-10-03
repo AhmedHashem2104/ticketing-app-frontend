@@ -3,6 +3,7 @@ import { encode } from "uqr";
 import { z } from "zod";
 import { cn } from "../lib/utils";
 import { validateProps, zClassName, zColor } from "../lib/props";
+import { useI18n } from "../lib/provider";
 
 /* ---------- QRCode ---------- */
 
@@ -18,7 +19,8 @@ export type QRCodeProps = z.input<typeof qrCodePropsSchema>;
 /** Atom · QRCode — a real, scannable QR code rendered as crisp SVG. */
 export function QRCode(props: QRCodeProps) {
   validateProps("QRCode", qrCodePropsSchema, props);
-  const { value, size = 231, label = "Ticket QR code", className } = props;
+  const { t } = useI18n();
+  const { value, size = 231, label = t("Ticket QR code"), className } = props;
   const { path, count } = useMemo(() => {
     const { data } = encode(value, { ecc: "M", border: 0 });
     let d = "";
@@ -59,6 +61,7 @@ export type BarcodeProps = z.input<typeof barcodePropsSchema>;
 /** Atom · Barcode — decorative linear code printed on the stub ticket. */
 export function Barcode(props: BarcodeProps) {
   validateProps("Barcode", barcodePropsSchema, props);
+  const { t } = useI18n();
   const { value, color = "#FFFFFF", background = "#121512", className } = props;
   const bars = useMemo(() => {
     const widths: number[] = [];
@@ -67,7 +70,12 @@ export function Barcode(props: BarcodeProps) {
   }, [value]);
   let x = 0;
   return (
-    <div role="img" aria-label={`Barcode ${value}`} className={cn("h-11 rounded-[5px] px-2 py-1.5", className)} style={{ background }}>
+    <div
+      role="img"
+      aria-label={t("Barcode {value}", { value })}
+      className={cn("h-11 rounded-[5px] px-2 py-1.5", className)}
+      style={{ background }}
+    >
       <svg width="100%" height="32" viewBox={`0 0 ${bars.reduce((a, b) => a + b, 0)} 32`} preserveAspectRatio="none" aria-hidden="true">
         {bars.map((w, i) => {
           const rect = i % 2 === 0 ? <rect key={i} x={x} y={0} width={w} height={32} fill={color} /> : null;

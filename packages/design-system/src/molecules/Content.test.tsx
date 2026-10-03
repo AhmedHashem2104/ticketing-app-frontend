@@ -165,7 +165,7 @@ describe("event molecules", () => {
   it("notifies for coming soon events", async () => {
     const onNotify = vi.fn();
     const { user, rerender } = renderUI(<ComingSoonRow event={comingSoonSummary} notified={false} onNotify={onNotify} />);
-    await user.click(screen.getByRole("button", { name: "Notify me about Egypt vs [Opponent]" }));
+    await user.click(screen.getByRole("button", { name: "Notify me about Egypt vs Morocco" }));
     expect(onNotify).toHaveBeenCalled();
     rerender(<ComingSoonRow event={comingSoonSummary} notified onNotify={onNotify} />);
     expect(screen.getByRole("button", { name: /We'll notify you/ })).toBeDisabled();

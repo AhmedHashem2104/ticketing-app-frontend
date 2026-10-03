@@ -11,6 +11,7 @@ export const featureFlagNames = [
   "promoCodes",
   "notifyMe",
   "parkingUpsell",
+  "notificationCentre",
   "addToWallet",
   "arabicLanguage",
 ] as const;

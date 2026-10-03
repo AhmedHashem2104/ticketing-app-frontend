@@ -1,8 +1,8 @@
 "use client";
 
 import type { EventDetail } from "@repo/contracts";
-import { ConcertDetailPage, LinkButton, MatchDetailPage } from "@repo/design-system";
-import { useRouter } from "next/navigation";
+import { ConcertDetailPage, LinkButton, MatchDetailPage, useI18n } from "@repo/design-system";
+import type { Translate } from "@repo/i18n";
 import { useEffect, useState } from "react";
 import { AppFooter, AppHeader } from "@/components/app-chrome";
 import { useAuth } from "@/lib/auth/session";
@@ -12,20 +12,26 @@ import { errorMessage } from "@/lib/api/client";
 import { useEvent, useNotify, usePresale } from "@/lib/queries";
 import { routes } from "@/lib/routes";
 import { PageLoading, QueryPage } from "./shared";
+import { useLocalizedRouter } from "@/lib/i18n/navigation";
 
-function buyAction(event: EventDetail, waitingRoom: boolean) {
-  if (event.status === "coming_soon")
-    return { label: "Not on sale yet — browse others", href: routes.events(event.kind === "match" ? "matches" : "concerts") };
+function buyAction(event: EventDetail, waitingRoom: boolean, resale: boolean, t: Translate) {
+  const browse = routes.events(event.kind === "match" ? "matches" : "concerts");
+  if (event.status === "cancelled") return { label: t("Cancelled — tickets refunded automatically"), href: browse };
+  if (event.status === "postponed") return { label: t("Postponed — new date to be announced"), href: browse };
+  if (event.status === "coming_soon") return { label: t("Not on sale yet — browse others"), href: browse };
   if (event.status === "sold_out")
-    return { label: "Sold out — browse others", href: routes.events(event.kind === "match" ? "matches" : "concerts") };
-  if (event.queueEnabled && waitingRoom) return { label: "Join the waiting room", href: routes.queue(event.slug) };
-  return { label: "Get tickets", href: routes.tickets(event.slug) };
+    return resale
+      ? { label: t("Sold out — buy on official resale"), href: routes.eventResale(event.slug) }
+      : { label: t("Sold out — browse others"), href: browse };
+  if (event.queueEnabled && waitingRoom) return { label: t("Join the waiting room"), href: routes.queue(event.slug) };
+  return { label: t("Get tickets"), href: routes.tickets(event.slug) };
 }
 
 export function EventView({ slug }: { slug: string }) {
   const query = useEvent(slug);
-  const router = useRouter();
+  const router = useLocalizedRouter();
   const isCinema = query.data?.kind === "cinema";
+  const { t } = useI18n();
 
   useEffect(() => {
     if (isCinema) router.replace(routes.tickets(slug));
@@ -33,7 +39,7 @@ export function EventView({ slug }: { slug: string }) {
 
   if (isCinema) return <PageLoading />;
   return (
-    <QueryPage query={query} loadingLabel="Loading event">
+    <QueryPage query={query} loadingLabel={t("Loading event")}>
       {(event) => (event.kind === "match" ? <MatchView event={event} /> : <ShowView event={event} />)}
     </QueryPage>
   );
@@ -41,7 +47,7 @@ export function EventView({ slug }: { slug: string }) {
 
 function useReminder(event: EventDetail) {
   const auth = useAuth();
-  const router = useRouter();
+  const router = useLocalizedRouter();
   const notify = useNotify();
   const [active, setActive] = useState(false);
   return {
@@ -72,33 +78,37 @@ function MatchView({ event }: { event: EventDetail }) {
   const auth = useAuth();
   const reminder = useReminder(event);
   const approvedFans = auth.status === "signed_in" ? auth.user.linkedFans.filter((f) => f.status === "approved" && !f.isSelf) : [];
+  const { t } = useI18n();
 
   const fanIdNotice =
     auth.status === "signed_in"
       ? auth.user.fanId.status === "approved"
         ? {
             tone: "success" as const,
-            title: "Your Fan ID is approved",
+            title: t("Your Fan ID is approved"),
             body: approvedFans.length
-              ? `${approvedFans.length} linked fan${approvedFans.length === 1 ? "" : "s"} ready: ${approvedFans.map((f) => f.name).join(", ")}`
-              : "Link family and friends to buy for them too.",
+              ? t("{count, plural, one {# linked fan ready} other {# linked fans ready}}: {names}", {
+                  count: approvedFans.length,
+                  names: approvedFans.map((f) => f.name).join(", "),
+                })
+              : t("Link family and friends to buy for them too."),
           }
         : {
             tone: "warning" as const,
-            title: "You need an approved Fan ID for this match",
+            title: t("You need an approved Fan ID for this match"),
             action: flags.fanId ? (
               <LinkButton href={routes.fanId} variant="outline-warning" size="md">
-                Get your Fan ID
+                {t("Get your Fan ID")}
               </LinkButton>
             ) : undefined,
           }
       : auth.status === "signed_out"
         ? {
             tone: "warning" as const,
-            title: "Sign in with an approved Fan ID to buy",
+            title: t("Sign in with an approved Fan ID to buy"),
             action: (
               <LinkButton href={routes.login(routes.event(event.slug))} variant="outline-warning" size="md">
-                Sign in
+                {t("Sign in")}
               </LinkButton>
             ),
           }
@@ -110,14 +120,14 @@ function MatchView({ event }: { event: EventDetail }) {
       footer={<AppFooter />}
       event={event}
       breadcrumbs={[
-        { label: "Matches", href: routes.events("matches") },
-        { label: event.category },
+        { label: t("Matches"), href: routes.events("matches") },
+        { label: t(event.category) },
         { label: event.tag.split(" · ")[1] ?? event.tag },
       ]}
       buyBox={{
         saleOpensAt: event.queueEnabled && flags.waitingRoom ? event.saleOpensAt : undefined,
         priceFrom: event.priceFrom,
-        action: buyAction(event, flags.waitingRoom),
+        action: buyAction(event, flags.waitingRoom, flags.resale, t),
         reminder: flags.notifyMe ? reminder : undefined,
         onAddToCalendar: () => addToCalendar(event),
       }}
@@ -129,19 +139,20 @@ function MatchView({ event }: { event: EventDetail }) {
 function ShowView({ event }: { event: EventDetail }) {
   const flags = useFeatureFlags();
   const presale = usePresale(event.slug);
+  const { t } = useI18n();
   return (
     <ConcertDetailPage
       header={<AppHeader active="concerts" />}
       footer={<AppFooter />}
       event={event}
       breadcrumbs={[
-        { label: "Concerts & events", href: routes.events("concerts") },
-        { label: event.tag.split(" · ")[1] ?? event.category },
+        { label: t("Concerts & events"), href: routes.events("concerts") },
+        { label: event.tag.split(" · ")[1] ?? t(event.category) },
       ]}
       buyBox={{
         priceFrom: event.priceFrom,
         scarcityNote: event.scarcityNote,
-        action: buyAction(event, flags.waitingRoom),
+        action: buyAction(event, flags.waitingRoom, flags.resale, t),
         footnote: event.priceNote,
         presale:
           flags.promoCodes && event.presaleCodeEnabled

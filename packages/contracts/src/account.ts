@@ -1,10 +1,11 @@
 import { z } from "zod";
-import { egyptMobileSchema, idSchema } from "./common";
+import { egyptMobileSchema, idSchema, imageUrlSchema } from "./common";
 
 export const fanSchema = z.object({
   id: idSchema,
   name: z.string(),
   initials: z.string().min(1).max(3),
+  avatarUrl: imageUrlSchema.optional(),
   fanIdMasked: z.string(),
   status: z.enum(["approved", "under_review"]),
   isSelf: z.boolean(),
@@ -13,7 +14,7 @@ export type Fan = z.infer<typeof fanSchema>;
 
 export const fanIdStatusSchema = z.discriminatedUnion("status", [
   z.object({ status: z.literal("none") }),
-  z.object({ status: z.literal("pending") }),
+  z.object({ status: z.literal("pending"), submittedAt: z.string() }),
   z.object({
     status: z.literal("approved"),
     number: z.string().regex(/^\d{4} \d{4} \d{4}$/),
@@ -27,11 +28,13 @@ export const userSchema = z.object({
   id: idSchema,
   fullName: z.string(),
   initials: z.string(),
+  avatarUrl: imageUrlSchema.optional(),
   phoneMasked: z.string(),
   email: z.email().optional(),
   fanId: fanIdStatusSchema,
   linkedFans: z.array(fanSchema),
   credit: z.number().nonnegative(),
+  preferences: z.object({ sms: z.boolean(), email: z.boolean(), marketing: z.boolean() }),
 });
 export type User = z.infer<typeof userSchema>;
 
@@ -78,24 +81,66 @@ export type LoginRequest = z.input<typeof loginRequestSchema>;
 export const sessionSchema = z.object({ token: z.string().min(16), user: userSchema });
 export type Session = z.infer<typeof sessionSchema>;
 
+/** What the web app's backend-for-frontend returns: the token stays in an httpOnly cookie. */
+export const clientSessionSchema = z.object({ user: userSchema });
+export type ClientSession = z.infer<typeof clientSessionSchema>;
+
+export const forgotPasswordRequestSchema = z.object({ phone: egyptMobileSchema });
+export type ForgotPasswordRequest = z.input<typeof forgotPasswordRequestSchema>;
+
+export const resetPasswordRequestSchema = z
+  .object({
+    verificationId: idSchema,
+    code: otpCodeSchema,
+    password: passwordSchema,
+    confirmPassword: z.string(),
+  })
+  .refine((v) => v.password === v.confirmPassword, { error: "Passwords don't match", path: ["confirmPassword"] });
+export type ResetPasswordRequest = z.input<typeof resetPasswordRequestSchema>;
+
+export const preferencesRequestSchema = z.object({ sms: z.boolean(), email: z.boolean(), marketing: z.boolean() });
+export type PreferencesRequest = z.infer<typeof preferencesRequestSchema>;
+
+export const notificationSchema = z.object({
+  id: idSchema,
+  kind: z.enum(["sale", "order", "transfer", "refund", "event", "fan_id"]),
+  title: z.string(),
+  body: z.string(),
+  href: z.string().optional(),
+  imageUrl: imageUrlSchema.optional(),
+  createdAt: z.string(),
+  read: z.boolean(),
+});
+export type Notification = z.infer<typeof notificationSchema>;
+
 /* ---------- Fan ID ---------- */
 
 export const documentTypeSchema = z.enum(["national_id", "passport"]);
 export type DocumentType = z.infer<typeof documentTypeSchema>;
 
-export const fanIdScanRequestSchema = z
+export const FAN_ID_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"] as const;
+export const FAN_ID_MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+
+/** Validates an uploaded photo by its metadata — works for browser `File`s and server-side uploads. */
+export const imageUploadSchema = z
+  .object({ type: z.string(), size: z.number() })
+  .refine((f) => (FAN_ID_IMAGE_TYPES as readonly string[]).includes(f.type), { error: "Use a JPG, PNG, WEBP or HEIC photo" })
+  .refine((f) => f.size > 0 && f.size <= FAN_ID_MAX_IMAGE_BYTES, { error: "Photos must be smaller than 8 MB" });
+
+/** Step 2 of the Fan ID wizard: document photos (sent as multipart `front` / `back`). */
+export const fanIdDocumentsSchema = z
   .object({
     documentType: documentTypeSchema,
-    frontCaptured: z.boolean(),
-    backCaptured: z.boolean(),
+    front: imageUploadSchema.optional(),
+    back: imageUploadSchema.optional(),
   })
   .superRefine((value, ctx) => {
-    if (!value.frontCaptured) ctx.addIssue({ code: "custom", path: ["frontCaptured"], message: "Add a photo of the front" });
-    if (value.documentType === "national_id" && !value.backCaptured) {
-      ctx.addIssue({ code: "custom", path: ["backCaptured"], message: "Add a photo of the back" });
+    if (!value.front) ctx.addIssue({ code: "custom", path: ["front"], message: "Add a photo of the front" });
+    if (value.documentType === "national_id" && !value.back) {
+      ctx.addIssue({ code: "custom", path: ["back"], message: "Add a photo of the back" });
     }
   });
-export type FanIdScanRequest = z.infer<typeof fanIdScanRequestSchema>;
+export type FanIdDocuments = z.input<typeof fanIdDocumentsSchema>;
 
 export const fanIdExtractedSchema = z.object({
   scanId: idSchema,
@@ -106,12 +151,25 @@ export const fanIdExtractedSchema = z.object({
 });
 export type FanIdExtracted = z.infer<typeof fanIdExtractedSchema>;
 
-export const fanIdSubmitRequestSchema = z.object({
-  scanId: idSchema,
-  selfieCaptured: z.literal(true, { error: "Take a selfie to continue" }),
-  confirmDetails: z.literal(true, { error: "Confirm your details to continue" }),
+/** Final step: multipart `selfie` plus the fields below. Approval is asynchronous (status `pending`). */
+export const fanIdSubmitRequestSchema = z
+  .object({
+    scanId: idSchema,
+    selfie: imageUploadSchema.optional(),
+    confirmDetails: z.literal(true, { error: "Confirm your details to continue" }),
+  })
+  .superRefine((value, ctx) => {
+    if (!value.selfie) ctx.addIssue({ code: "custom", path: ["selfie"], message: "Take a selfie to continue" });
+  });
+export type FanIdSubmitRequest = z.input<typeof fanIdSubmitRequestSchema>;
+
+/** Whether each of the account's fans can get a ticket for a given match (one ticket per Fan ID). */
+export const fanEligibilitySchema = z.object({
+  fanId: idSchema,
+  eligible: z.boolean(),
+  reason: z.string().optional(),
 });
-export type FanIdSubmitRequest = z.infer<typeof fanIdSubmitRequestSchema>;
+export type FanEligibility = z.infer<typeof fanEligibilitySchema>;
 
 export const linkFanRequestSchema = z.object({
   name: z.string().trim().min(3, { error: "Enter their full name" }),

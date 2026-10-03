@@ -164,3 +164,42 @@ describe("formatting", () => {
     expect(initialsOf("Omar Khaled Hassan")).toBe("OK");
   });
 });
+
+describe("production contract additions", () => {
+  it("never accepts card data in the order request", async () => {
+    const { createOrderRequestSchema, hostedCardFormSchema } = await import("../src");
+    const parsed = createOrderRequestSchema.parse({
+      holdId: "h",
+      payment: { method: "card", cardNumber: "4242424242424242" },
+      acceptTerms: true,
+    });
+    expect(parsed.payment).toEqual({ method: "card" });
+    expect(
+      hostedCardFormSchema.safeParse({ cardNumber: "4242 4242 4242 4242", expiry: "12/49", cvc: "123", nameOnCard: "Omar" }).success,
+    ).toBe(true);
+  });
+
+  it("validates Fan ID photos by type and size", async () => {
+    const { fanIdDocumentsSchema, fanIdSubmitRequestSchema, FAN_ID_MAX_IMAGE_BYTES } = await import("../src");
+    const photo = { type: "image/jpeg", size: 1000 };
+    expect(fanIdDocumentsSchema.safeParse({ documentType: "national_id", front: photo, back: photo }).success).toBe(true);
+    expect(fanIdDocumentsSchema.safeParse({ documentType: "passport", front: photo }).success).toBe(true);
+    const missingBack = fanIdDocumentsSchema.safeParse({ documentType: "national_id", front: photo });
+    expect(missingBack.error?.issues[0]?.message).toBe("Add a photo of the back");
+    expect(fanIdDocumentsSchema.safeParse({ documentType: "passport", front: { type: "application/pdf", size: 10 } }).success).toBe(false);
+    expect(
+      fanIdDocumentsSchema.safeParse({ documentType: "passport", front: { type: "image/png", size: FAN_ID_MAX_IMAGE_BYTES + 1 } }).success,
+    ).toBe(false);
+    expect(fanIdSubmitRequestSchema.safeParse({ scanId: "s", confirmDetails: true }).error?.issues[0]?.message).toBe(
+      "Take a selfie to continue",
+    );
+  });
+
+  it("requires matching passwords on reset and supports resale holds", async () => {
+    const { resetPasswordRequestSchema, holdRequestSchema } = await import("../src");
+    const base = { verificationId: "v", code: "123456", password: "newpassword" };
+    expect(resetPasswordRequestSchema.safeParse({ ...base, confirmPassword: "newpassword" }).success).toBe(true);
+    expect(resetPasswordRequestSchema.safeParse({ ...base, confirmPassword: "other" }).error?.issues[0]?.path).toEqual(["confirmPassword"]);
+    expect(holdRequestSchema.safeParse({ type: "resale", eventId: "e", listingId: "l" }).success).toBe(true);
+  });
+});

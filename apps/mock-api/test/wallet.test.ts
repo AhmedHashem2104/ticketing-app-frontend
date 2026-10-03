@@ -1,7 +1,18 @@
-import { refundOptionsSchema, refundSchema, resaleListingSchema, ticketSchema } from "@repo/contracts";
+import {
+  dayjs,
+  gateVerifyResponseSchema,
+  qrTokenSchema,
+  refundOptionsSchema,
+  refundSchema,
+  resaleListingSchema,
+  ticketSchema,
+  transferSchema,
+  transfersResponseSchema,
+} from "@repo/contracts";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { setup } from "./helpers";
+import { QR_PERIOD_SECONDS, SECOND_USER } from "../src/data/store";
+import { FIXED_NOW, setup } from "./helpers";
 
 async function signedIn() {
   const ctx = setup();
@@ -49,8 +60,8 @@ describe("tickets", () => {
 });
 
 describe("transfers", () => {
-  it("sends match tickets to another Fan ID only", async () => {
-    const { api, auth, token, bySlug } = await signedIn();
+  it("sends match tickets to an approved Fan ID, which the recipient accepts", async () => {
+    const { api, auth, token, bySlug, login } = await signedIn();
     const [derby] = bySlug("nile-fc-vs-delta-sc");
     await api
       .post(`/api/tickets/${derby!.id}/transfer`)
@@ -63,24 +74,151 @@ describe("transfers", () => {
       .send({ mode: "fan_id", recipient: "2210 4417 4821" })
       .expect(400);
     expect(self.body.error.message).toMatch(/yourself/);
-    const res = await api
+    const unknown = await api
       .post(`/api/tickets/${derby!.id}/transfer`)
       .set(auth(token))
+      .send({ mode: "fan_id", recipient: "2210 4417 0000" })
+      .expect(400);
+    expect(unknown.body.error.message).toMatch(/no approved Fan ID/);
+    // Youssef already has a derby ticket — one per Fan ID.
+    await api.post(`/api/tickets/${derby!.id}/transfer`).set(auth(token)).send({ mode: "fan_id", recipient: "2210 4417 1907" }).expect(422);
+    // …but Youssef's own ticket (bought by Omar) can move to Youssef's account.
+    const youssefsTicket = bySlug("nile-fc-vs-delta-sc").find((t) => t.holderName === "Youssef A.")!;
+    const toOwner = await api
+      .post(`/api/tickets/${youssefsTicket.id}/transfer`)
+      .set(auth(token))
       .send({ mode: "fan_id", recipient: "2210 4417 1907" })
-      .expect(200);
-    expect(res.body).toMatchObject({ status: "transferred", recipient: "Fan ID •••• 1907" });
-    await api.post(`/api/tickets/${derby!.id}/transfer`).set(auth(token)).send({ mode: "fan_id", recipient: "2210 4417 1907" }).expect(409);
+      .expect(201);
+    await api.post(`/api/transfers/${toOwner.body.id}/cancel`).set(auth(token)).expect(200);
+
+    // Karim (the resale seller) has no derby ticket yet.
+    const sent = await api
+      .post(`/api/tickets/${derby!.id}/transfer`)
+      .set(auth(token))
+      .send({ mode: "fan_id", recipient: "2210 4417 5555" })
+      .expect(201);
+    const transfer = transferSchema.parse(sent.body);
+    expect(transfer).toMatchObject({ status: "pending", direction: "outgoing", recipientLabel: "Fan ID •••• 5555" });
+    expect((await api.get(`/api/tickets/${derby!.id}`).set(auth(token))).body.status).toBe("transfer_pending");
+    await api.post(`/api/tickets/${derby!.id}/transfer`).set(auth(token)).send({ mode: "fan_id", recipient: "2210 4417 5555" }).expect(409);
+    await api.post("/api/resale/listings").set(auth(token)).send({ ticketId: derby!.id, price: 200, payoutMethod: "wallet" }).expect(409);
+
+    const karim = await login("1155555555", "matchpass123");
+    const inbox = transfersResponseSchema.parse((await api.get("/api/transfers").set(auth(karim)).expect(200)).body);
+    expect(inbox.incoming).toHaveLength(1);
+    expect(inbox.incoming[0]).toMatchObject({ direction: "incoming", fromName: "Omar Khaled" });
+    const alerts = await api.get("/api/alerts").set(auth(karim));
+    expect(alerts.body[0]).toMatchObject({ tone: "info", action: { href: "/transfers" } });
+    // Only the recipient can accept.
+    await api.post(`/api/transfers/${transfer.id}/accept`).set(auth(token)).expect(404);
+
+    const accepted = await api.post(`/api/transfers/${transfer.id}/accept`).set(auth(karim)).expect(200);
+    expect(accepted.body.transfer.status).toBe("accepted");
+    expect(ticketSchema.parse(accepted.body.ticket)).toMatchObject({
+      status: "valid",
+      holderName: "Karim N.",
+      seatLabel: derby!.seatLabel,
+    });
+    expect(accepted.body.ticket.code).not.toBe(derby!.code);
+    expect((await api.get(`/api/tickets/${derby!.id}`).set(auth(token))).body.status).toBe("transferred");
+    await api.post(`/api/transfers/${transfer.id}/accept`).set(auth(karim)).expect(409);
   });
 
-  it("sends concert tickets by phone or email", async () => {
-    const { api, auth, token, bySlug } = await signedIn();
+  it("lets the recipient decline and the sender cancel", async () => {
+    const { api, auth, token, bySlug, login } = await signedIn();
+    const [first, second] = bySlug("layla-nour-live-in-cairo");
+    const youssef = await login(SECOND_USER.phone, SECOND_USER.password);
+    const t1 = await api
+      .post(`/api/tickets/${first!.id}/transfer`)
+      .set(auth(token))
+      .send({ mode: "contact", recipient: "youssef.a@mail.com" })
+      .expect(201);
+    await api.post(`/api/transfers/${t1.body.id}/decline`).set(auth(youssef)).expect(200);
+    expect((await api.get(`/api/tickets/${first!.id}`).set(auth(token))).body.status).toBe("valid");
+
+    const t2 = await api
+      .post(`/api/tickets/${second!.id}/transfer`)
+      .set(auth(token))
+      .send({ mode: "contact", recipient: "+20 10 9876 5432" })
+      .expect(201);
+    expect(t2.body.recipientLabel).toBe("+20•••432");
+    await api.post(`/api/transfers/${t2.body.id}/cancel`).set(auth(youssef)).expect(404);
+    await api.post(`/api/transfers/${t2.body.id}/cancel`).set(auth(token)).expect(200);
+    await api.post(`/api/transfers/${t2.body.id}/accept`).set(auth(youssef)).expect(409);
+    const outgoing = await api.get("/api/transfers").set(auth(token));
+    expect(outgoing.body.outgoing.map((t: { status: string }) => t.status)).toEqual(expect.arrayContaining(["declined", "cancelled"]));
+  });
+
+  it("returns the ticket when a transfer isn't accepted within 24 hours", async () => {
+    const { api, auth, token, bySlug, advance } = await signedIn();
     const [layla] = bySlug("layla-nour-live-in-cairo");
-    await api.post(`/api/tickets/${layla!.id}/transfer`).set(auth(token)).send({ mode: "contact", recipient: "not-valid" }).expect(400);
-    await api
+    const sent = await api
       .post(`/api/tickets/${layla!.id}/transfer`)
       .set(auth(token))
       .send({ mode: "contact", recipient: "friend@mail.com" })
-      .expect(200);
+      .expect(201);
+    advance(24 * 3_600_000 + 1000);
+    const list = await api.get("/api/transfers").set(auth(token));
+    expect(list.body.outgoing.find((t: { id: string }) => t.id === sent.body.id).status).toBe("expired");
+    expect((await api.get(`/api/tickets/${layla!.id}`).set(auth(token))).body.status).toBe("valid");
+  });
+
+  it("lets someone without an account claim a ticket after signing up with that number", async () => {
+    const { api, auth, token, bySlug, signUpNewUser } = await signedIn();
+    const [layla] = bySlug("layla-nour-live-in-cairo");
+    const sent = await api
+      .post(`/api/tickets/${layla!.id}/transfer`)
+      .set(auth(token))
+      .send({ mode: "contact", recipient: "1112345678" })
+      .expect(201);
+    const sara = await signUpNewUser("1112345678");
+    const inbox = await api.get("/api/transfers").set(auth(sara));
+    expect(inbox.body.incoming.map((t: { id: string }) => t.id)).toEqual([sent.body.id]);
+    const accepted = await api.post(`/api/transfers/${sent.body.id}/accept`).set(auth(sara)).expect(200);
+    expect(accepted.body.ticket.holderName).toBe("Sara Ahmed");
+  });
+});
+
+describe("entry QR and gate", () => {
+  it("issues short-lived signed tokens that the gate verifies", async () => {
+    const { api, auth, token, bySlug, advance } = await signedIn();
+    const [film] = bySlug("the-last-lighthouse");
+    const qr = qrTokenSchema.parse((await api.get(`/api/tickets/${film!.id}/qr`).set(auth(token)).expect(200)).body);
+    expect(qr.token).toMatch(/^MPQ1\./);
+    expect(qr.refreshInSeconds).toBeLessThanOrEqual(QR_PERIOD_SECONDS);
+
+    const ok = gateVerifyResponseSchema.parse((await api.post("/api/gate/verify").send({ token: qr.token }).expect(200)).body);
+    expect(ok).toMatchObject({ valid: true, reason: "ok", ticketCode: film!.code, holderName: "Omar K." });
+
+    const tampered = qr.token.slice(0, -2) + (qr.token.endsWith("AA") ? "BB" : "AA");
+    expect((await api.post("/api/gate/verify").send({ token: tampered })).body).toEqual({ valid: false, reason: "tampered" });
+    expect((await api.post("/api/gate/verify").send({ token: "screenshot" })).body.reason).toBe("tampered");
+
+    // A screenshot stops working a window after it rotates.
+    advance(QR_PERIOD_SECONDS * 2 * 1000);
+    expect((await api.post("/api/gate/verify").send({ token: qr.token })).body).toEqual({ valid: false, reason: "expired" });
+  });
+
+  it("withholds the QR until 24 hours before a match and rejects transferred tickets", async () => {
+    const { api, auth, token, bySlug, store } = await signedIn();
+    const [derby] = bySlug("nile-fc-vs-delta-sc");
+    const locked = await api.get(`/api/tickets/${derby!.id}/qr`).set(auth(token)).expect(403);
+    expect(locked.body.error.message).toMatch(/^Appears /);
+
+    const [film] = bySlug("the-last-lighthouse");
+    const qr = await api.get(`/api/tickets/${film!.id}/qr`).set(auth(token));
+    store.tickets.get(film!.id)!.status = "transferred";
+    expect((await api.post("/api/gate/verify").send({ token: qr.body.token })).body).toMatchObject({ valid: false, reason: "not_valid" });
+    await api.get(`/api/tickets/${film!.id}/qr`).set(auth(token)).expect(409);
+  });
+
+  it("recomputes QR readiness and refund windows as time passes", async () => {
+    const { api, auth, token, bySlug, advance } = await signedIn();
+    const [layla] = bySlug("layla-nour-live-in-cairo");
+    expect(layla).toMatchObject({ qrReady: false, refundable: true });
+    advance(dayjs(layla!.startsAt).diff(FIXED_NOW) - 23 * 3_600_000);
+    const later = await api.get(`/api/tickets/${layla!.id}`).set(auth(token));
+    expect(later.body).toMatchObject({ qrReady: true, refundable: false });
   });
 });
 

@@ -1,13 +1,16 @@
 "use client";
 
-import { Container, ErrorState, LoadingState, MessagePage, SiteLayout } from "@repo/design-system";
+import { Container, ErrorState, LoadingState, MessagePage, SiteLayout, useI18n } from "@repo/design-system";
+import { msg } from "@repo/i18n";
 import type { UseQueryResult } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { AppFooter, AppHeader, type NavId } from "@/components/app-chrome";
 import { ApiRequestError, toApiError } from "@/lib/api/client";
 import { routes } from "@/lib/routes";
 
-export function PageLoading({ active, label = "Loading" }: { active?: NavId; label?: string }) {
+export function PageLoading({ active, label }: { active?: NavId; label?: string }) {
+  const { t } = useI18n();
+  label ??= t("Loading");
   return (
     <SiteLayout header={<AppHeader active={active} />}>
       <LoadingState label={label} className="min-h-[50vh]" />
@@ -17,22 +20,23 @@ export function PageLoading({ active, label = "Loading" }: { active?: NavId; lab
 
 export function PageError({ error, onRetry, active }: { error: unknown; onRetry?: () => void; active?: NavId }) {
   const apiError = toApiError(error);
+  const { t } = useI18n();
   if (apiError.status === 404) {
     return (
       <MessagePage
         header={<AppHeader active={active} />}
         footer={<AppFooter />}
         code="404"
-        title="We couldn't find that"
-        body="It may have been removed, or the link might be wrong."
-        action={{ label: "Browse events", href: routes.events() }}
+        title={t("We couldn't find that")}
+        body={t("It may have been removed, or the link might be wrong.")}
+        action={{ label: t("Browse events"), href: routes.events() }}
       />
     );
   }
   return (
     <SiteLayout header={<AppHeader active={active} />}>
       <Container className="pt-10">
-        <ErrorState message={apiError.message} onRetry={onRetry} />
+        <ErrorState message={t(apiError.message)} onRetry={onRetry} />
       </Container>
     </SiteLayout>
   );
@@ -57,11 +61,17 @@ export function QueryPage<T>({
 
 export const isApiError = (error: unknown, code: string) => error instanceof ApiRequestError && error.code === code;
 
-export const authBrand = {
-  title: "One account for every match and every show",
+const AUTH_BRAND = {
+  title: msg("One account for every match and every show"),
   bullets: [
-    "Get alerts the moment your club or artist goes on sale",
-    "Pay with card, wallet, InstaPay or Fawry",
-    "Tickets on your phone — transfer or resell safely",
+    msg("Get alerts the moment your club or artist goes on sale"),
+    msg("Pay with card, wallet, InstaPay or Fawry"),
+    msg("Tickets on your phone — transfer or resell safely"),
   ],
 };
+
+/** The green brand panel beside the auth forms, in the visitor's language. */
+export function useAuthBrand() {
+  const { t } = useI18n();
+  return { title: t(AUTH_BRAND.title), bullets: AUTH_BRAND.bullets.map((b) => t(b)) };
+}

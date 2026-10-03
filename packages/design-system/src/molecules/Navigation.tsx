@@ -2,7 +2,8 @@ import { Check } from "lucide-react";
 import { z } from "zod";
 import { Chip } from "../atoms/Chip";
 import { validateProps, zClassName, zFn, zHref } from "../lib/props";
-import { useUI } from "../lib/provider";
+import { msg } from "@repo/i18n";
+import { useI18n, useUI } from "../lib/provider";
 import { cn } from "../lib/utils";
 
 const optionSchema = z.object({ value: z.string().min(1), label: z.string().min(1) });
@@ -141,7 +142,8 @@ export type StepProgressProps = z.input<typeof stepProgressPropsSchema>;
 /** Molecule · StepProgress — segmented progress for multi-step flows (Fan ID, refunds). */
 export function StepProgress(props: StepProgressProps) {
   validateProps("StepProgress", stepProgressPropsSchema, props);
-  const { steps, current, label = "Steps", className } = props;
+  const { t } = useI18n();
+  const { steps, current, label = t("Steps"), className } = props;
   return (
     <ol
       aria-label={label}
@@ -160,7 +162,7 @@ export function StepProgress(props: StepProgressProps) {
             <span aria-hidden="true" className={cn("h-1.5 rounded-[3px]", done ? "bg-pitch" : "bg-line")} />
             <span>
               {step}
-              <span className="sr-only">{n < current ? " (completed)" : n === current ? " (current step)" : ""}</span>
+              <span className="sr-only">{n < current ? ` ${t("(completed)")}` : n === current ? ` ${t("(current step)")}` : ""}</span>
             </span>
           </li>
         );
@@ -179,14 +181,15 @@ export const checkoutStepsPropsSchema = z.object({
 
 export type CheckoutStepsProps = z.input<typeof checkoutStepsPropsSchema>;
 
-const CHECKOUT_STEPS = ["Tickets", "Payment", "Done"];
+const CHECKOUT_STEPS = [msg("Tickets"), msg("Payment"), msg("Done")];
 
 /** Molecule · CheckoutSteps — the 1 Tickets · 2 Payment · 3 Done pill tracker. */
 export function CheckoutSteps(props: CheckoutStepsProps) {
   validateProps("CheckoutSteps", checkoutStepsPropsSchema, props);
   const { current, accent = "pitch", className } = props;
+  const { t } = useI18n();
   return (
-    <ol aria-label="Checkout progress" className={cn("m-0 flex list-none gap-2 p-0 text-sm", className)}>
+    <ol aria-label={t("Checkout progress")} className={cn("m-0 flex list-none gap-2 p-0 text-sm", className)}>
       {CHECKOUT_STEPS.map((step, i) => {
         const n = i + 1;
         const state = n < current ? "done" : n === current ? "current" : "todo";
@@ -201,11 +204,11 @@ export function CheckoutSteps(props: CheckoutStepsProps) {
               state === "todo" && "bg-sand text-sub",
             )}
           >
-            {n} {step}
+            {n} {t(step)}
             {state === "done" ? (
               <>
                 <Check className="size-3.5" aria-hidden="true" />
-                <span className="sr-only">(completed)</span>
+                <span className="sr-only">{t("(completed)")}</span>
               </>
             ) : null}
           </li>

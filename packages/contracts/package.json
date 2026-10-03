@@ -13,6 +13,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "dayjs": "1.11.23",
     "zod": "4.6.5"
   },
   "devDependencies": {

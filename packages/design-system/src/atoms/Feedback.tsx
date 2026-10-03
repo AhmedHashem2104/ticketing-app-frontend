@@ -5,6 +5,7 @@ import { Separator as UISeparator } from "../components/ui/separator";
 import { Skeleton as UISkeleton } from "../components/ui/skeleton";
 import { cn } from "../lib/utils";
 import { validateProps, zClassName } from "../lib/props";
+import { useI18n } from "../lib/provider";
 
 /* ---------- ProgressBar ---------- */
 
@@ -47,7 +48,8 @@ export type SpinnerProps = z.input<typeof spinnerPropsSchema>;
 /** Atom · Spinner — indeterminate loading indicator announced politely. */
 export function Spinner(props: SpinnerProps) {
   validateProps("Spinner", spinnerPropsSchema, props);
-  const { label = "Loading", size = "md", className } = props;
+  const { t } = useI18n();
+  const { label = t("Loading"), size = "md", className } = props;
   const px = { sm: "size-4", md: "size-6", lg: "size-10" }[size];
   return (
     <span role="status" className={cn("inline-flex items-center gap-2 text-muted-ink", className)}>

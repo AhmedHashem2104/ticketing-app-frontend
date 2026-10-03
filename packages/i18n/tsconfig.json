@@ -1,0 +1,4 @@
+{
+  "extends": "@repo/typescript-config/bundler-library.json",
+  "include": ["src", "test"]
+}

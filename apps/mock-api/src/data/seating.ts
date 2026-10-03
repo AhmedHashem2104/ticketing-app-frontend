@@ -12,7 +12,7 @@ import type {
   Zone,
 } from "@repo/contracts";
 import { arenaPrices, hallPrices, stadiumPrices } from "./catalog";
-import { cairoDate, cairoDateTime } from "./time";
+import { cairoDate, cairoDateTime, weekdayShort } from "./time";
 
 /** Deterministic pseudo-random in [0, 1) — the same seat is always sold in every run. */
 export const rnd = (a: number, b: number, c = 0) => {
@@ -262,8 +262,8 @@ export function cinemaMap(now: Date): CinemaSeatMap {
   const showtimes: Showtime[] = [];
   for (let day = 0; day < 5; day += 1) {
     const iso = cairoDateTime(day, "12:00", now);
-    const date = cairoDate(new Date(iso));
-    const dow = new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Cairo", weekday: "short" }).format(new Date(iso));
+    const date = cairoDate(iso);
+    const dow = weekdayShort(iso);
     SLOTS.forEach((slot, s) => {
       const p = pct(day, s);
       showtimes.push({

@@ -17,4 +17,9 @@ export const queryKeys = {
   listings: ["listings"] as const,
   refundOptions: (orderId: string) => ["refund-options", orderId] as const,
   refunds: ["refunds"] as const,
+  ticketQr: (id: string) => ["ticket", id, "qr"] as const,
+  transfers: ["transfers"] as const,
+  notifications: ["notifications"] as const,
+  resaleOffers: (slug: string) => ["event", slug, "resale"] as const,
+  fanEligibility: (slug: string) => ["event", slug, "fan-eligibility"] as const,
 };

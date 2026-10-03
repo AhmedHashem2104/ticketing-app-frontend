@@ -1,5 +1,5 @@
 import { Loader2 } from "lucide-react";
-import type { ComponentProps } from "react";
+import { useSyncExternalStore, type ComponentProps } from "react";
 import { z } from "zod";
 import { Button as UIButton, buttonVariants } from "../components/ui/button";
 import { cn } from "../lib/utils";
@@ -43,6 +43,15 @@ export const buttonPropsSchema = sharedSchema
     path: ["aria-label"],
   });
 
+const subscribeNever = () => () => {};
+/** False during server rendering and hydration, true once React owns the page. */
+const useHydrated = () =>
+  useSyncExternalStore(
+    subscribeNever,
+    () => true,
+    () => false,
+  );
+
 export type ButtonProps = Omit<ComponentProps<"button">, "type"> & z.input<typeof buttonPropsSchema>;
 
 /**
@@ -52,8 +61,11 @@ export type ButtonProps = Omit<ComponentProps<"button">, "type"> & z.input<typeo
 export function Button(props: ButtonProps) {
   validateProps("Button", buttonPropsSchema, props);
   const { loading = false, loadingText, children, disabled, type = "button", ...rest } = props;
+  // A submit before hydration would fall back to a native GET submit — reloading the page and
+  // putting form values (even passwords) in the URL. Submit buttons stay disabled until then.
+  const hydrated = useHydrated();
   return (
-    <UIButton type={type} disabled={disabled || loading} aria-busy={loading || undefined} {...rest}>
+    <UIButton type={type} disabled={disabled || loading || (type === "submit" && !hydrated)} aria-busy={loading || undefined} {...rest}>
       {loading ? (
         <>
           <Loader2 className="animate-spin" aria-hidden="true" />

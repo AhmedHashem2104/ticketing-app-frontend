@@ -14,6 +14,7 @@ const statusByCode: Record<ApiErrorCode, number> = {
   SEAT_UNAVAILABLE: 409,
   HOLD_EXPIRED: 410,
   LIMIT_EXCEEDED: 422,
+  RATE_LIMITED: 429,
   INTERNAL_ERROR: 500,
 };
 

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="CU crest">
+  <defs><clipPath id="s"><path d="M60 6 L108 20 V58 C108 88 87 106 60 116 C33 106 12 88 12 58 V20 Z"/></clipPath></defs>
+  <g clip-path="url(#s)">
+    <rect width="120" height="120" fill="#F7C600"/>
+    <rect x="60" width="60" height="120" fill="#0E2A5C"/>
+  </g>
+  <path d="M60 6 L108 20 V58 C108 88 87 106 60 116 C33 106 12 88 12 58 V20 Z" fill="none" stroke="#0E2A5C" stroke-width="5"/>
+  <rect x="22" y="46" width="76" height="26" rx="6" fill="#fff"/>
+  <text x="60" y="65" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="20" fill="#0E2A5C">CU</text>
+</svg>

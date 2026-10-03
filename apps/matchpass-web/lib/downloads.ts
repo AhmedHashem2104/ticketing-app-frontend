@@ -1,8 +1,7 @@
-import { formatAmount, formatMoney, type Order } from "@repo/contracts";
+import { addHours, icsTimestamp, type Order } from "@repo/contracts";
+import { createFormatters, createTranslator, type Formatters, type Translate } from "@repo/i18n";
 
-const pad = (n: number) => String(n).padStart(2, "0");
-const icsDate = (date: Date) =>
-  `${date.getUTCFullYear()}${pad(date.getUTCMonth() + 1)}${pad(date.getUTCDate())}T${pad(date.getUTCHours())}${pad(date.getUTCMinutes())}00Z`;
+const icsDate = (date: Date | string) => icsTimestamp(date);
 const escapeIcs = (text: string) =>
   text
     .replace(/\\/g, "\\\\")
@@ -12,9 +11,9 @@ const escapeIcs = (text: string) =>
 export type CalendarEvent = { id: string; title: string; startsAt: string; durationHours?: number; location: string; description?: string };
 
 /** Builds an RFC 5545 calendar file for an event. */
-export function buildIcs(event: CalendarEvent, now = new Date()) {
-  const start = new Date(event.startsAt);
-  const end = new Date(start.getTime() + (event.durationHours ?? 2.5) * 3_600_000);
+export function buildIcs(event: CalendarEvent, now: Date | string = new Date()) {
+  const start = event.startsAt;
+  const end = addHours(start, event.durationHours ?? 2.5);
   return [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
@@ -33,17 +32,20 @@ export function buildIcs(event: CalendarEvent, now = new Date()) {
   ].join("\r\n");
 }
 
-export function buildReceipt(order: Order) {
+const english = { t: createTranslator("en"), f: createFormatters("en") };
+
+/** Plain-text receipt in the visitor's language (pass `useI18n()`'s `{ t, f }`; English by default). */
+export function buildReceipt(order: Order, { t, f }: { t: Translate; f: Formatters } = english) {
   return [
-    "MATCHPASS — RECEIPT",
-    `Order ${order.reference}`,
+    t("MATCHPASS — RECEIPT"),
+    t("Order {reference}", { reference: order.reference }),
     `${order.eventTitle}`,
     `${order.eventMeta}`,
     "",
-    ...order.tickets.map((t) => `${t.holderName.padEnd(20)} ${t.seatLabel.padEnd(32)} ${formatAmount(t.price)}`),
+    ...order.tickets.map((ticket) => `${ticket.holderName.padEnd(20)} ${ticket.seatLabel.padEnd(32)} ${f.amount(ticket.price)}`),
     "",
     `${order.paymentLabel}`,
-    `Total (incl. VAT): ${formatMoney(order.total)}`,
+    `${t("Total (incl. VAT)")}: ${f.money(order.total)}`,
   ].join("\n");
 }
 

@@ -6,6 +6,8 @@ import {
   homeResponseSchema,
   seatMapSchema,
 } from "@repo/contracts";
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { setup } from "./helpers";
@@ -130,7 +132,7 @@ describe("seat maps", () => {
 
   it("refuses seat maps for events not on sale yet", async () => {
     const { api } = setup();
-    await api.get("/api/events/egypt-vs-opponent/seatmap").expect(403);
+    await api.get("/api/events/egypt-vs-morocco/seatmap").expect(403);
   });
 
   it("serves cinema seats per showtime", async () => {
@@ -159,9 +161,9 @@ describe("presale, notify and alerts", () => {
 
   it("subscribes signed-in fans to on-sale alerts", async () => {
     const { api, login, auth, store } = setup();
-    await api.post("/api/events/egypt-vs-opponent/notify").send({}).expect(401);
+    await api.post("/api/events/egypt-vs-morocco/notify").send({}).expect(401);
     const token = await login();
-    const res = await api.post("/api/events/egypt-vs-opponent/notify").set(auth(token)).send({ channel: "email" }).expect(201);
+    const res = await api.post("/api/events/egypt-vs-morocco/notify").set(auth(token)).send({ channel: "email" }).expect(201);
     expect(res.body).toMatchObject({ subscribed: true, channel: "email" });
     expect(store.notifications.size).toBe(1);
   });
@@ -175,5 +177,70 @@ describe("presale, notify and alerts", () => {
     const t2 = await signUpNewUser();
     const fresh = await api.get("/api/alerts").set(auth(t2)).expect(200);
     expect(fresh.body).toEqual([]);
+  });
+});
+
+describe("cinema and resale listings", () => {
+  it("browses films on the cinema tab", async () => {
+    const { api } = setup();
+    const res = await api.get("/api/events?tab=cinema").expect(200);
+    expect(res.body.items.map((e: { title: string }) => e.title).sort()).toEqual(["The Last Lighthouse", "Zamalek Nights"]);
+    expect(res.body.facets.categories).toEqual(["Cinema"]);
+  });
+
+  it("shows resale offers to anyone, without seller details", async () => {
+    const { api } = setup();
+    const res = await api.get("/api/events/nile-philharmonic-film-classics/resale").expect(200);
+    expect(res.body).toEqual([
+      {
+        id: "lst_resale_3",
+        eventId: "evt_nile_philharmonic",
+        label: "Fan resale",
+        seatLabel: "Stalls · Row B · Seat 9",
+        price: 550,
+        faceValue: 600,
+        imageUrl: "/images/events/nile-philharmonic-film-classics.jpg",
+        requiresFanId: false,
+      },
+    ]);
+    await api.get("/api/events/nope/resale").expect(404);
+  });
+});
+
+describe("seed imagery", () => {
+  const publicDir = fileURLToPath(new URL("../../matchpass-web/public", import.meta.url));
+
+  it("gives every event a cover photo and every team a crest that the web app actually serves", async () => {
+    const { store } = setup();
+    const urls = store.events.flatMap((e) => [e.imageUrl, e.homeTeam?.logoUrl, e.awayTeam?.logoUrl].filter(Boolean)) as string[];
+    expect(store.events.every((e) => e.imageUrl)).toBe(true);
+    for (const url of new Set(urls)) expect(existsSync(`${publicDir}${url}`), url).toBe(true);
+  });
+
+  it("gives seeded accounts, fans and their tickets profile photos", async () => {
+    const { store } = setup();
+    for (const user of store.users.values()) {
+      expect(existsSync(`${publicDir}${user.avatarUrl}`), user.fullName).toBe(true);
+      for (const fan of user.fans) expect(fan.avatarUrl, fan.name).toBeTruthy();
+    }
+    for (const ticket of store.tickets.values()) {
+      expect(ticket.imageUrl, ticket.code).toBeTruthy();
+      expect(ticket.holderAvatarUrl, ticket.holderName).toBeTruthy();
+    }
+  });
+});
+
+describe("list endpoints carry images", () => {
+  it("returns a cover photo for every item on home and in every browse tab", async () => {
+    const { api } = setup();
+    const home = homeResponseSchema.parse((await api.get("/api/home").expect(200)).body);
+    const tabs = await Promise.all(
+      ["matches", "concerts", "cinema"].map(
+        async (tab) => eventsResponseSchema.parse((await api.get(`/api/events?tab=${tab}`).expect(200)).body).items,
+      ),
+    );
+    const items = [...home.featured, ...home.onSale, ...home.comingSoon, ...tabs.flat()];
+    expect(items.length).toBeGreaterThan(14);
+    for (const e of items) expect(e.imageUrl, e.slug).toBe(`/images/events/${e.slug}.jpg`);
   });
 });

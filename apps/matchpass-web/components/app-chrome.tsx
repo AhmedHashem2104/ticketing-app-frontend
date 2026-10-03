@@ -1,10 +1,27 @@
 "use client";
 
-import { SiteFooter, SiteHeader } from "@repo/design-system";
-import { useEffect, useState } from "react";
+import { dayjs } from "@repo/contracts";
+import { NotificationBell, SiteFooter, SiteHeader, useI18n } from "@repo/design-system";
+import { useLanguageSwitch } from "@/components/language-switch";
 import { useAuth } from "@/lib/auth/session";
 import { useFeatureFlags } from "@/lib/feature-flags/client";
+import { useMarkNotificationsRead, useNotifications } from "@/lib/queries";
 import { routes } from "@/lib/routes";
+import { useLocalizedRouter } from "@/lib/i18n/navigation";
+
+function AppNotifications() {
+  const list = useNotifications();
+  const markRead = useMarkNotificationsRead();
+  return (
+    <NotificationBell
+      items={(list.data?.items ?? []).slice(0, 8)}
+      unread={list.data?.unread ?? 0}
+      onMarkAllRead={() => markRead.mutate(undefined)}
+      onOpenChange={(open) => (open ? void list.refetch() : undefined)}
+      allHref={routes.notifications}
+    />
+  );
+}
 
 export type NavId = "matches" | "concerts" | "cinema" | "resale" | "tickets";
 
@@ -12,29 +29,46 @@ export type NavId = "matches" | "concerts" | "cinema" | "resale" | "tickets";
 export function AppHeader({ active }: { active?: NavId }) {
   const flags = useFeatureFlags();
   const auth = useAuth();
-  const [rtl, setRtl] = useState(false);
-
-  useEffect(() => {
-    document.documentElement.dir = rtl ? "rtl" : "ltr";
-    document.documentElement.lang = rtl ? "ar" : "en";
-  }, [rtl]);
+  const router = useLocalizedRouter();
+  const language = useLanguageSwitch();
+  const { t } = useI18n();
 
   const links = [
-    { id: "matches", label: "Matches", href: routes.events("matches") },
-    { id: "concerts", label: "Concerts & events", href: routes.events("concerts") },
-    ...(flags.cinema ? [{ id: "cinema", label: "Cinema", href: routes.cinema }] : []),
-    ...(flags.resale ? [{ id: "resale", label: "Resale", href: routes.resale() }] : []),
-    { id: "tickets", label: "My tickets", href: routes.myTickets },
+    { id: "matches", label: t("Matches"), href: routes.events("matches") },
+    { id: "concerts", label: t("Concerts & events"), href: routes.events("concerts") },
+    ...(flags.cinema ? [{ id: "cinema", label: t("Cinema"), href: routes.events("cinema") }] : []),
+    ...(flags.resale ? [{ id: "resale", label: t("Resale"), href: routes.resale() }] : []),
+    { id: "tickets", label: t("My tickets"), href: routes.myTickets },
   ];
 
   const account =
     auth.status === "signed_in"
-      ? { status: "signed_in" as const, initials: auth.user.initials, name: auth.user.fullName, href: routes.myTickets }
+      ? {
+          status: "signed_in" as const,
+          initials: auth.user.initials,
+          ...(auth.user.avatarUrl ? { avatarUrl: auth.user.avatarUrl } : {}),
+          name: auth.user.fullName,
+          href: routes.account,
+          menu: {
+            links: [
+              { label: t("My tickets"), href: routes.myTickets },
+              { label: t("Ticket transfers"), href: routes.transfers },
+              ...(flags.fanId
+                ? [{ label: auth.user.fanId.status === "approved" ? t("Fan ID") : t("Get your Fan ID"), href: routes.fanId }]
+                : []),
+              { label: t("Account & preferences"), href: routes.account },
+            ],
+            onSignOut: async () => {
+              await auth.signOut();
+              router.replace(routes.home);
+            },
+          },
+        }
       : auth.status === "signed_out"
         ? {
             status: "signed_out" as const,
             signInHref: routes.login(),
-            ...(flags.fanId ? { cta: { label: "Get your Fan ID", href: routes.signUp } } : {}),
+            ...(flags.fanId ? { cta: { label: t("Get your Fan ID"), href: routes.signUp } } : {}),
           }
         : { status: "loading" as const };
 
@@ -43,46 +77,45 @@ export function AppHeader({ active }: { active?: NavId }) {
       links={links}
       activeId={active}
       account={account}
-      languageToggle={
-        flags.arabicLanguage
-          ? { label: rtl ? "Switch to English" : "Switch to Arabic", glyph: rtl ? "EN" : "ع", onToggle: () => setRtl((v) => !v) }
-          : undefined
-      }
+      notifications={auth.status === "signed_in" && flags.notificationCentre ? <AppNotifications /> : undefined}
+      languageToggle={language ? { label: language.label, glyph: language.glyph, onToggle: language.onToggle } : undefined}
     />
   );
 }
 
 export function AppFooter() {
   const flags = useFeatureFlags();
+  const { t } = useI18n();
   return (
     <SiteFooter
-      tagline="Official tickets for football, concerts and live events."
-      legal={`© ${new Date().getFullYear()} Matchpass. Prices in Egyptian pounds and include VAT.`}
+      tagline={t("Official tickets for football, concerts and live events.")}
+      legal={t("© {year} Matchpass. Prices in Egyptian pounds and include VAT.", { year: dayjs().year() })}
       columns={[
         {
-          title: "Fans",
+          title: t("Fans"),
           links: [
-            { label: "Matches", href: routes.events("matches") },
-            { label: "Concerts & events", href: routes.events("concerts") },
-            ...(flags.resale ? [{ label: "Official resale", href: routes.resale() }] : []),
-            ...(flags.fanId ? [{ label: "Fan ID", href: routes.fanId }] : []),
+            { label: t("Matches"), href: routes.events("matches") },
+            { label: t("Concerts & events"), href: routes.events("concerts") },
+            ...(flags.resale ? [{ label: t("Official resale"), href: routes.resale() }] : []),
+            ...(flags.fanId ? [{ label: t("Fan ID"), href: routes.fanId }] : []),
           ],
         },
         {
-          title: "Organisers",
+          title: t("Organisers"),
           links: [
-            { label: "Sell tickets with us", href: "/info/organisers" },
-            { label: "Organiser log in", href: "/info/organiser-login" },
-            { label: "Fees", href: "/info/fees" },
+            { label: t("Sell tickets with us"), href: "/info/organisers" },
+            { label: t("Organiser log in"), href: "/info/organiser-login" },
+            { label: t("Fees"), href: "/info/fees" },
           ],
         },
         {
-          title: "Help & legal",
+          title: t("Help & legal"),
           links: [
-            { label: "Help centre", href: "/info/help" },
-            { label: "Terms of sale", href: "/info/terms" },
-            ...(flags.refunds ? [{ label: "Refund policy", href: routes.refunds }] : []),
-            { label: "Privacy policy", href: "/info/privacy" },
+            { label: t("Help centre"), href: "/info/help" },
+            { label: t("Terms of sale"), href: "/info/terms" },
+            { label: t("Refund policy"), href: "/info/refund-policy" },
+            { label: t("Privacy policy"), href: "/info/privacy" },
+            { label: t("Contact us"), href: "/info/contact" },
           ],
         },
       ]}

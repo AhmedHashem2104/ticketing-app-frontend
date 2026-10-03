@@ -1,9 +1,9 @@
-import { formatMoney, themeSchema } from "@repo/contracts";
+import { themeSchema } from "@repo/contracts";
 import { z } from "zod";
-import { dayOfMonth, monthShort } from "../lib/datetime";
 import { cn } from "../lib/utils";
 import { validateProps, zClassName, zDateString } from "../lib/props";
 import { themeSurface } from "../lib/theme";
+import { useI18n } from "../lib/provider";
 
 /* ---------- DateBadge ---------- */
 
@@ -21,8 +21,9 @@ export type DateBadgeProps = z.input<typeof dateBadgePropsSchema>;
 export function DateBadge(props: DateBadgeProps) {
   validateProps("DateBadge", dateBadgePropsSchema, props);
   const { date, theme = "pitch", size = "md", variant = "tile", className } = props;
-  const day = dayOfMonth(date);
-  const month = monthShort(date);
+  const { f } = useI18n();
+  const day = f.dayOfMonth(date);
+  const month = f.monthShort(date);
   if (variant === "plain") {
     return (
       <span className={cn("flex w-14 shrink-0 flex-col items-center", className)}>
@@ -61,7 +62,8 @@ export type MoneyProps = z.input<typeof moneyPropsSchema>;
 export function Money(props: MoneyProps) {
   validateProps("Money", moneyPropsSchema, props);
   const { amount, variant = "plain", signed, className } = props;
-  const text = `${signed && amount < 0 ? "− " : ""}${formatMoney(Math.abs(amount))}`;
+  const { f } = useI18n();
+  const text = `${signed && amount < 0 ? "− " : ""}${f.money(Math.abs(amount))}`;
   return (
     <span
       className={cn(

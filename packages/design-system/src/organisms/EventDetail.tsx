@@ -1,12 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  eventDetailSchema,
-  formatMoney,
-  presaleCodeRequestSchema,
-  priceRowSchema,
-  themeSchema,
-  type PresaleCodeRequest,
-} from "@repo/contracts";
+import { eventDetailSchema, presaleCodeRequestSchema, priceRowSchema, themeSchema, type PresaleCodeRequest } from "@repo/contracts";
 import { Check } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -15,6 +8,7 @@ import { availabilityText, Badge } from "../atoms/Badge";
 import { Button, LinkButton } from "../atoms/Button";
 import { Input } from "../atoms/FormControls";
 import { TeamCrest } from "../atoms/Identity";
+import { CoverImage, Thumbnail } from "../atoms/Media";
 import { Eyebrow, Heading } from "../atoms/Typography";
 import { Card } from "../molecules/Content";
 import { CheckoutSteps } from "../molecules/Navigation";
@@ -22,12 +16,16 @@ import { HoldTimer, CountdownTiles } from "../molecules/Time";
 import { validateProps, zClassName, zDateString, zFn, zHref, zNode } from "../lib/props";
 import { themeMuted, themeSurface } from "../lib/theme";
 import { cn } from "../lib/utils";
+import { DevAutofillButton } from "../atoms/DevAutofill";
+import { devSamples, fillForm } from "../lib/dev-samples";
+import { useI18n } from "../lib/provider";
 
 const crumbSchema = z.object({ label: z.string().min(1), href: zHref.optional() });
 
 function Breadcrumbs({ items, className }: { items: z.infer<typeof crumbSchema>[]; className?: string }) {
+  const { t } = useI18n();
   return (
-    <nav aria-label="Breadcrumb" className={cn("text-sm", className)}>
+    <nav aria-label={t("Breadcrumb")} className={cn("text-sm", className)}>
       <ol className="m-0 flex list-none flex-wrap gap-1 p-0">
         {items.map((item, i) => (
           <li key={item.label} className="flex gap-1">
@@ -60,21 +58,23 @@ export type MatchHeroProps = z.input<typeof matchHeroPropsSchema>;
 export function MatchHero(props: MatchHeroProps) {
   validateProps("MatchHero", matchHeroPropsSchema, props);
   const { event, breadcrumbs, className } = props;
+  const { t } = useI18n();
   const home = event.homeTeam!;
   const away = event.awayTeam!;
   return (
-    <header className={cn(themeSurface[event.theme], className)}>
+    <header className={cn("relative isolate overflow-hidden", themeSurface[event.theme], className)}>
+      <CoverImage src={event.imageUrl} theme={event.theme} />
       <div className="mx-auto flex max-w-[1280px] flex-col gap-[22px] px-4 pt-8 pb-11 sm:px-8">
         <Breadcrumbs items={breadcrumbs} className="text-mint" />
         <div className="flex flex-wrap items-center gap-x-7 gap-y-3" aria-hidden="true">
           <span className="flex items-center gap-4">
-            <TeamCrest short={home.short} size="lg" />
+            <TeamCrest short={home.short} src={home.logoUrl} size="lg" />
             <span className="font-display text-[44px] leading-none font-extrabold uppercase md:text-[64px]">{home.name}</span>
           </span>
-          <span className="font-display text-[40px] font-extrabold text-gold">VS</span>
+          <span className="font-display text-[40px] font-extrabold text-gold">{t("VS")}</span>
           <span className="flex items-center gap-4">
             <span className="font-display text-[44px] leading-none font-extrabold uppercase md:text-[64px]">{away.name}</span>
-            <TeamCrest short={away.short} size="lg" variant="dark" />
+            <TeamCrest short={away.short} src={away.logoUrl} size="lg" variant="dark" />
           </span>
         </div>
         <h1 className="text-lg font-medium text-mint md:text-xl">
@@ -82,7 +82,7 @@ export function MatchHero(props: MatchHeroProps) {
           {event.headline}
         </h1>
         {event.badges.length ? (
-          <ul aria-label="Entry rules" className="m-0 flex list-none flex-wrap gap-2 p-0 text-[13px] font-semibold">
+          <ul aria-label={t("Entry rules")} className="m-0 flex list-none flex-wrap gap-2 p-0 text-[13px] font-semibold">
             {event.badges.map((badge, i) => (
               <li key={badge} className={cn("rounded-[14px] px-3 py-1.5", i === 0 ? "bg-gold text-ink" : "bg-white text-pitch")}>
                 {badge}
@@ -109,15 +109,18 @@ export type ConcertHeroProps = z.input<typeof concertHeroPropsSchema>;
 export function ConcertHero(props: ConcertHeroProps) {
   validateProps("ConcertHero", concertHeroPropsSchema, props);
   const { event, breadcrumbs, className } = props;
+  const { t } = useI18n();
   const [name, rest] = event.title.split(" — ");
   return (
-    <header className={cn(themeSurface[event.theme], className)}>
+    <header className={cn("relative isolate overflow-hidden", themeSurface[event.theme], className)}>
+      <CoverImage src={event.imageUrl} theme={event.theme} className="opacity-60 blur-[2px]" />
       <div className="mx-auto flex max-w-[1280px] flex-wrap items-center gap-10 px-4 pt-8 pb-11 sm:px-8">
         <div
           role="img"
-          aria-label={`${event.title} poster`}
-          className="flex h-[260px] w-full max-w-[320px] flex-col justify-between rounded-2xl bg-ink p-7 sm:h-80 sm:flex-[0_0_320px]"
+          aria-label={t("{title} poster", { title: event.title })}
+          className="relative isolate flex h-[260px] w-full max-w-[320px] flex-col justify-between overflow-hidden rounded-2xl bg-ink p-7 shadow-xl sm:h-80 sm:flex-[0_0_320px]"
         >
+          <CoverImage src={event.imageUrl} scrim="bottom" />
           <span className="font-mono text-xs text-gold">{event.tag.toUpperCase()}</span>
           <span className="font-display text-[56px] leading-[0.9] font-extrabold uppercase sm:text-[72px]">{name}</span>
           <span className="font-display text-[22px] font-bold text-gold uppercase">{rest ?? event.venue.area}</span>
@@ -151,6 +154,8 @@ export const eventBannerPropsSchema = z.object({
   title: z.string().min(1),
   meta: z.string().min(1),
   theme: themeSchema,
+  /** Event photo behind the banner (and on the poster, when shown). */
+  imageUrl: z.string().min(1).optional(),
   poster: z.boolean().optional(),
   trailing: zNode.optional(),
   className: zClassName,
@@ -161,18 +166,21 @@ export type EventBannerProps = z.input<typeof eventBannerPropsSchema>;
 /** Organism · EventBanner — compact coloured strip above seat maps. */
 export function EventBanner(props: EventBannerProps) {
   validateProps("EventBanner", eventBannerPropsSchema, props);
-  const { eyebrow, title, meta, theme, poster, trailing, className } = props;
+  const { eyebrow, title, meta, theme, imageUrl, poster, trailing, className } = props;
   return (
-    <div className={cn(themeSurface[theme], className)}>
+    <div className={cn("relative isolate overflow-hidden", themeSurface[theme], className)}>
+      <CoverImage src={imageUrl} theme={theme} />
       <div className="mx-auto flex max-w-[1280px] flex-wrap items-center justify-between gap-4 px-4 py-[22px] sm:px-8">
         <div className="flex items-center gap-[22px]">
           {poster ? (
             <div
-              role="img"
-              aria-label={`${title} poster`}
-              className="flex h-[120px] w-[84px] shrink-0 items-end rounded-lg bg-plum p-2 font-mono text-[10px] text-gold"
+              aria-hidden="true"
+              className="relative isolate flex h-[120px] w-[84px] shrink-0 flex-col justify-between overflow-hidden rounded-lg bg-gradient-to-b from-plum to-ink p-2 text-white shadow-md"
             >
-              [POSTER]
+              <CoverImage src={imageUrl} scrim="bottom" />
+              <span className="absolute -top-6 -end-6 size-16 rounded-full bg-gold/80" />
+              <span className="relative font-mono text-[9px] tracking-[0.12em] text-gold">MATCHPASS</span>
+              <span className="relative font-display text-[15px] leading-[0.95] font-extrabold uppercase">{title}</span>
             </div>
           ) : null}
           <div className="flex flex-col gap-1">
@@ -196,6 +204,8 @@ export function EventBanner(props: EventBannerProps) {
 export const eventContextBarPropsSchema = z.object({
   title: z.string().min(1).optional(),
   meta: z.string().optional(),
+  /** Event photo shown as a thumbnail beside the title. */
+  imageUrl: z.string().min(1).optional(),
   back: z.object({ label: z.string().min(1), href: zHref }).optional(),
   step: z.number().int().min(1).max(3),
   accent: z.enum(["pitch", "plum"]).optional(),
@@ -209,15 +219,17 @@ export type EventContextBarProps = z.input<typeof eventContextBarPropsSchema>;
 /** Organism · EventContextBar — white bar with event, purchase steps and the hold timer. */
 export function EventContextBar(props: EventContextBarProps) {
   validateProps("EventContextBar", eventContextBarPropsSchema, props);
-  const { title, meta, back, step, accent, expiresAt, onExpire, className } = props;
+  const { title, meta, imageUrl, back, step, accent, expiresAt, onExpire, className } = props;
+  const { dir } = useI18n();
   return (
     <div className={cn("border-b border-line bg-white", className)}>
       <div className="mx-auto flex max-w-[1280px] flex-wrap items-center gap-x-6 gap-y-3 px-4 py-3.5 sm:px-8">
         {back ? (
           <AppLink href={back.href} tone="pitch" className="flex min-h-11 items-center text-sm">
-            ← {back.label}
+            {dir === "rtl" ? "→" : "←"} {back.label}
           </AppLink>
         ) : null}
+        {imageUrl ? <Thumbnail src={imageUrl} size="sm" className="max-sm:hidden" /> : null}
         <div className="flex flex-1 flex-col gap-0.5">
           {title ? <span className="text-[17px] font-semibold">{title}</span> : null}
           {meta ? <span className="text-[13px] text-muted-ink">{meta}</span> : null}
@@ -245,8 +257,9 @@ export type PriceTableProps = z.input<typeof priceTablePropsSchema>;
 export function PriceTable(props: PriceTableProps) {
   validateProps("PriceTable", priceTablePropsSchema, props);
   const { title, rows, note, variant = "zones", className } = props;
-  const th = "py-2.5 text-left font-mono text-xs font-normal text-muted-ink";
-  const td = "border-t border-line py-3 pr-3 align-top";
+  const { t, f } = useI18n();
+  const th = "py-2.5 text-start font-mono text-xs font-normal text-muted-ink";
+  const td = "border-t border-line py-3 pe-3 align-top";
   return (
     <Card title={title} className={className}>
       <div className="overflow-x-auto">
@@ -254,17 +267,17 @@ export function PriceTable(props: PriceTableProps) {
           <thead>
             <tr>
               <th scope="col" className={th}>
-                {variant === "zones" ? "ZONE" : "TICKET"}
+                {variant === "zones" ? t("ZONE") : t("TICKET")}
               </th>
               <th scope="col" className={th}>
-                {variant === "zones" ? "WHERE" : "WHAT YOU GET"}
+                {variant === "zones" ? t("WHERE") : t("WHAT YOU GET")}
               </th>
               <th scope="col" className={th}>
-                PRICE
+                {t("PRICE")}
               </th>
               {variant === "zones" ? (
                 <th scope="col" className={th}>
-                  AVAILABILITY
+                  {t("AVAILABILITY")}
                 </th>
               ) : null}
             </tr>
@@ -272,11 +285,11 @@ export function PriceTable(props: PriceTableProps) {
           <tbody>
             {rows.map((row) => (
               <tr key={row.name}>
-                <th scope="row" className={cn(td, "text-left font-semibold")}>
+                <th scope="row" className={cn(td, "text-start font-semibold")}>
                   {row.name}
                 </th>
                 <td className={cn(td, variant === "types" && "text-sub")}>{row.where}</td>
-                <td className={td}>{formatMoney(row.price)}</td>
+                <td className={td}>{f.money(row.price)}</td>
                 {variant === "zones" ? <td className={cn(td, availabilityText[row.availability])}>{row.availabilityLabel}</td> : null}
               </tr>
             ))}
@@ -302,11 +315,12 @@ export type GatesCardProps = z.input<typeof gatesCardPropsSchema>;
 export function GatesCard(props: GatesCardProps) {
   validateProps("GatesCard", gatesCardPropsSchema, props);
   const { gates, note, className } = props;
+  const { t } = useI18n();
   return (
     <section aria-labelledby="gates-title" className={cn("flex flex-wrap gap-6 rounded-xl border border-line bg-white p-6", className)}>
       <div className="flex min-w-[min(100%,280px)] flex-1 flex-col gap-3">
         <Heading id="gates-title" size="lg">
-          Stadium &amp; gates
+          {t("Stadium & gates")}
         </Heading>
         <dl className="m-0 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-[15px]">
           {gates.map((g) => (
@@ -320,16 +334,17 @@ export function GatesCard(props: GatesCardProps) {
       </div>
       <div
         aria-hidden="true"
+        dir="ltr"
         className="grid h-[220px] w-full max-w-[300px] grid-cols-[44px_minmax(0,1fr)_44px] grid-rows-[36px_minmax(0,1fr)_36px] gap-1.5 rounded-xl bg-forest p-2.5 text-center text-[11px] font-semibold text-ink"
       >
         <div />
-        <div className="flex items-center justify-center rounded-md bg-mint">N · 1–4</div>
+        <div className="flex items-center justify-center rounded-md bg-mint">{t("N · 1–4")}</div>
         <div />
-        <div className="flex rotate-180 items-center justify-center rounded-md bg-white [writing-mode:vertical-rl]">W · 5–8</div>
+        <div className="flex rotate-180 items-center justify-center rounded-md bg-white [writing-mode:vertical-rl]">{t("W · 5–8")}</div>
         <div className="rounded border-2 border-white" />
-        <div className="flex items-center justify-center rounded-md bg-mint [writing-mode:vertical-rl]">E · 9–12</div>
+        <div className="flex items-center justify-center rounded-md bg-mint [writing-mode:vertical-rl]">{t("E · 9–12")}</div>
         <div />
-        <div className="flex items-center justify-center rounded-md bg-sand">S · 13–14 away</div>
+        <div className="flex items-center justify-center rounded-md bg-sand">{t("S · 13–14 away")}</div>
         <div />
       </div>
     </section>
@@ -347,7 +362,7 @@ export function ListCard(props: ListCardProps) {
   const { title, items, className } = props;
   return (
     <Card title={title} className={className}>
-      <ul className="m-0 flex flex-col gap-1 pl-5 text-[15px] leading-relaxed">
+      <ul className="m-0 flex flex-col gap-1 ps-5 text-[15px] leading-relaxed">
         {items.map((item) => (
           <li key={item}>{item}</li>
         ))}
@@ -366,8 +381,9 @@ export type RunningOrderProps = z.input<typeof runningOrderPropsSchema>;
 export function RunningOrder(props: RunningOrderProps) {
   validateProps("RunningOrder", runningOrderPropsSchema, props);
   const { items, className } = props;
+  const { t } = useI18n();
   return (
-    <Card title="Running order" className={className}>
+    <Card title={t("Running order")} className={className}>
       <ol className="m-0 list-none p-0 text-base">
         {items.map((item) => (
           <li key={item.time + item.label} className="grid grid-cols-[90px_minmax(0,1fr)] border-t border-line py-3">
@@ -397,11 +413,12 @@ export type SaleCountdownCardProps = z.input<typeof saleCountdownCardPropsSchema
 export function SaleCountdownCard(props: SaleCountdownCardProps) {
   validateProps("SaleCountdownCard", saleCountdownCardPropsSchema, props);
   const { saleOpensAt, priceFrom, action, reminder, onAddToCalendar, className } = props;
+  const { t, f } = useI18n();
   return (
     <div className={cn("flex flex-col gap-4 rounded-2xl border border-line bg-white p-6", className)}>
       {saleOpensAt ? <CountdownTiles target={saleOpensAt} /> : null}
       <p className="text-sm text-sub">
-        Tickets from <strong className="text-ink">{formatMoney(priceFrom)}</strong>
+        {t("Tickets from")} <strong className="text-ink">{f.money(priceFrom)}</strong>
       </p>
       <LinkButton href={action.href} variant="primary" size="xl" block>
         {action.label}
@@ -412,16 +429,16 @@ export function SaleCountdownCard(props: SaleCountdownCardProps) {
             <Button variant="outline" className="flex-1" onClick={reminder.onSet} loading={reminder.pending} disabled={reminder.active}>
               {reminder.active ? (
                 <>
-                  <Check aria-hidden="true" /> Reminder set
+                  <Check aria-hidden="true" /> {t("Reminder set")}
                 </>
               ) : (
-                "Set reminder"
+                t("Set reminder")
               )}
             </Button>
           ) : null}
           {onAddToCalendar ? (
             <Button variant="outline" className="flex-1" onClick={onAddToCalendar}>
-              Add to calendar
+              {t("Add to calendar")}
             </Button>
           ) : null}
         </div>
@@ -454,6 +471,7 @@ export type TicketsFromCardProps = z.input<typeof ticketsFromCardPropsSchema>;
 export function TicketsFromCard(props: TicketsFromCardProps) {
   validateProps("TicketsFromCard", ticketsFromCardPropsSchema, props);
   const { priceFrom, scarcityNote, action, footnote, presale, className } = props;
+  const { t, f } = useI18n();
   const form = useForm<PresaleCodeRequest, unknown, z.output<typeof presaleCodeRequestSchema>>({
     resolver: zodResolver(presaleCodeRequestSchema),
     defaultValues: { code: "" },
@@ -462,10 +480,10 @@ export function TicketsFromCard(props: TicketsFromCardProps) {
   return (
     <div className={cn("flex flex-col gap-4 rounded-2xl border border-line bg-white p-6", className)}>
       <div className="flex items-center justify-between gap-2">
-        <span className="text-sm text-sub">Tickets from</span>
+        <span className="text-sm text-sub">{t("Tickets from")}</span>
         {scarcityNote ? <Badge tone="warning">{scarcityNote}</Badge> : null}
       </div>
-      <span className="font-display text-[44px] leading-none font-extrabold">{formatMoney(priceFrom)}</span>
+      <span className="font-display text-[44px] leading-none font-extrabold">{f.money(priceFrom)}</span>
       <LinkButton href={action.href} variant="primary" size="xl" block>
         {action.label}
       </LinkButton>
@@ -475,14 +493,15 @@ export function TicketsFromCard(props: TicketsFromCardProps) {
           onSubmit={form.handleSubmit((values) => presale.onApply(values.code))}
           className="flex flex-col gap-1.5 border-t border-line pt-3.5"
         >
+          <DevAutofillButton label={t("Autofill presale code")} onFill={() => fillForm(form, { code: devSamples.presaleCode })} />
           <label htmlFor="presale-code" className="text-sm font-semibold">
-            Have a presale code?
+            {t("Have a presale code?")}
           </label>
           <div className="flex gap-2">
             <Input
               id="presale-code"
               mono
-              placeholder="e.g. LAYLA24"
+              placeholder={t("e.g. LAYLA24")}
               autoComplete="off"
               invalid={!!error}
               aria-describedby={error ? "presale-error" : presale.appliedCode ? "presale-ok" : undefined}
@@ -490,16 +509,16 @@ export function TicketsFromCard(props: TicketsFromCardProps) {
               {...form.register("code")}
             />
             <Button type="submit" variant="outline" loading={presale.pending}>
-              Apply
+              {t("Apply")}
             </Button>
           </div>
           {error ? (
             <span id="presale-error" role="alert" className="text-[13px] text-rose-ink">
-              {error}
+              {t(error)}
             </span>
           ) : presale.appliedCode ? (
             <span id="presale-ok" role="status" className="text-[13px] font-semibold text-pitch">
-              Presale unlocked with {presale.appliedCode}
+              {t("Presale unlocked with {code}", { code: presale.appliedCode })}
             </span>
           ) : null}
         </form>
@@ -518,11 +537,12 @@ export type PromoterCardProps = z.input<typeof promoterCardPropsSchema>;
 export function PromoterCard(props: PromoterCardProps) {
   validateProps("PromoterCard", promoterCardPropsSchema, props);
   const { name, verified, className } = props;
+  const { t } = useI18n();
   return (
     <div className={cn("flex flex-col gap-1 rounded-xl border border-line bg-white px-[18px] py-4 text-sm", className)}>
-      <Eyebrow size="sm">Presented by</Eyebrow>
+      <Eyebrow size="sm">{t("Presented by")}</Eyebrow>
       <span className="font-semibold">{name}</span>
-      {verified ? <span className="font-semibold text-pitch">Verified organiser</span> : null}
+      {verified ? <span className="font-semibold text-pitch">{t("Verified organiser")}</span> : null}
     </div>
   );
 }

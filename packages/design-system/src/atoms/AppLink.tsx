@@ -28,13 +28,13 @@ const tones = {
 export function AppLink(props: AppLinkProps) {
   validateProps("AppLink", appLinkPropsSchema, props);
   const { href, children, className, external, current, tone = "inherit", underline, ...rest } = props;
-  const { LinkComponent } = useUI();
+  const { LinkComponent, t } = useUI();
   const classes = cn(tones[tone], underline && "underline underline-offset-2", "hover:underline", className);
   if (external) {
     return (
       <a href={href} className={classes} target="_blank" rel="noopener noreferrer" {...rest}>
         {children}
-        <span className="sr-only"> (opens in a new tab)</span>
+        <span className="sr-only"> {t("(opens in a new tab)")}</span>
       </a>
     );
   }

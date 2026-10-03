@@ -35,6 +35,8 @@ export const saleStatusTone: Record<SaleStatus, BadgeTone> = {
   queue: "warning",
   sold_out: "danger",
   coming_soon: "neutral",
+  cancelled: "danger",
+  postponed: "warning",
 };
 
 /** Text colour for availability labels in price tables. */

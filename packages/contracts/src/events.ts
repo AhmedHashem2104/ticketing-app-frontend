@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { amountSchema, idSchema, isoDateTimeSchema, themeSchema } from "./common";
+import { amountSchema, idSchema, imageUrlSchema, isoDateTimeSchema, themeSchema } from "./common";
 
 export const eventKindSchema = z.enum(["match", "concert", "festival", "comedy", "classical", "cinema"]);
 export type EventKind = z.infer<typeof eventKindSchema>;
@@ -7,7 +7,7 @@ export type EventKind = z.infer<typeof eventKindSchema>;
 export const venueLayoutSchema = z.enum(["stadium", "arena", "hall", "cinema"]);
 export type VenueLayout = z.infer<typeof venueLayoutSchema>;
 
-export const saleStatusSchema = z.enum(["on_sale", "few_left", "presale", "queue", "sold_out", "coming_soon"]);
+export const saleStatusSchema = z.enum(["on_sale", "few_left", "presale", "queue", "sold_out", "coming_soon", "cancelled", "postponed"]);
 export type SaleStatus = z.infer<typeof saleStatusSchema>;
 
 export const citySchema = z.enum(["cairo", "alexandria", "canal", "red_sea", "delta"]);
@@ -21,12 +21,14 @@ export const cityLabels: Record<City, string> = {
   delta: "Delta",
 };
 
-export const eventTabSchema = z.enum(["matches", "concerts"]);
+export const eventTabSchema = z.enum(["matches", "concerts", "cinema"]);
 export type EventTab = z.infer<typeof eventTabSchema>;
 
 export const teamSchema = z.object({
   name: z.string().min(1),
   short: z.string().min(2).max(4),
+  /** Club crest or national flag. */
+  logoUrl: imageUrlSchema.optional(),
 });
 export type Team = z.infer<typeof teamSchema>;
 
@@ -47,6 +49,8 @@ export const eventSummarySchema = z.object({
   subtitle: z.string().optional(),
   tag: z.string().min(1),
   art: z.string().min(1),
+  /** Cover photo (16:9) for cards, heroes and tickets; the themed `art` block is shown when absent. */
+  imageUrl: imageUrlSchema.optional(),
   theme: themeSchema,
   startsAt: isoDateTimeSchema,
   endsAt: isoDateTimeSchema.optional(),

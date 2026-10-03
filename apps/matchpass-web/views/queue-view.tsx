@@ -1,24 +1,25 @@
 "use client";
 
 import type { EventDetail, User } from "@repo/contracts";
-import { WaitingRoomPage } from "@repo/design-system";
-import { useRouter } from "next/navigation";
+import { useI18n, WaitingRoomPage } from "@repo/design-system";
 import { useEffect, useRef, useState } from "react";
 import { RequireAuth } from "@/lib/auth/session";
 import { errorMessage } from "@/lib/api/client";
 import { useEvent, useJoinQueue, useQueueSms, useQueueStatus } from "@/lib/queries";
 import { routes } from "@/lib/routes";
 import { QueryPage } from "./shared";
+import { useLocalizedRouter } from "@/lib/i18n/navigation";
 
 const queueKey = (eventId: string) => `matchpass.queue.${eventId}`;
 export const turnKey = (eventId: string) => `matchpass.turn.${eventId}`;
 
 export function QueueView({ slug }: { slug: string }) {
   const event = useEvent(slug);
+  const { t } = useI18n();
   return (
     <RequireAuth>
       {(user) => (
-        <QueryPage query={event} loadingLabel="Opening the waiting room">
+        <QueryPage query={event} loadingLabel={t("Opening the waiting room")}>
           {(data) => <Queue event={data} user={user} />}
         </QueryPage>
       )}
@@ -27,7 +28,7 @@ export function QueueView({ slug }: { slug: string }) {
 }
 
 function Queue({ event, user }: { event: EventDetail; user: User }) {
-  const router = useRouter();
+  const router = useLocalizedRouter();
   const join = useJoinQueue();
   // Refreshing keeps your place; opening a new session would move you to the back.
   const [queueId, setQueueId] = useState<string | undefined>(() => sessionStorage.getItem(queueKey(event.id)) ?? undefined);
@@ -71,6 +72,7 @@ function Queue({ event, user }: { event: EventDetail; user: User }) {
   }, [status.data, event.id]);
 
   const linked = user.linkedFans.filter((f) => f.status === "approved" && !f.isSelf).length;
+  const { t } = useI18n();
 
   return (
     <WaitingRoomPage
@@ -84,7 +86,11 @@ function Queue({ event, user }: { event: EventDetail; user: User }) {
       onSmsChange={(optIn) => sms.mutate(optIn)}
       readyNote={
         user.fanId.status === "approved"
-          ? `Your Fan ID${linked ? ` and ${linked} linked fan${linked === 1 ? "" : "s"}` : ""} ${linked ? "are" : "is"} ready.`
+          ? linked
+            ? t("{count, plural, one {Your Fan ID and # linked fan are ready.} other {Your Fan ID and # linked fans are ready.}}", {
+                count: linked,
+              })
+            : t("Your Fan ID is ready.")
           : undefined
       }
     />

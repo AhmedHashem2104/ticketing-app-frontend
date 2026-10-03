@@ -111,3 +111,11 @@ describe("AppLink", () => {
     expectInvalidProps(() => renderUI(<AppLink href="javascript:alert(1)">x</AppLink>), /href/);
   });
 });
+
+describe("Button before hydration", () => {
+  it("renders submit buttons disabled on the server so forms can't submit natively", async () => {
+    const { renderToString } = await import("react-dom/server");
+    expect(renderToString(<Button type="submit">Log in</Button>)).toMatch(/disabled=""/);
+    expect(renderToString(<Button>Open</Button>)).not.toMatch(/disabled=""/);
+  });
+});

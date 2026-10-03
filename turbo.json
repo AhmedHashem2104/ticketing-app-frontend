@@ -31,7 +31,14 @@
         "QUEUE_TIME_SCALE",
         "HOLD_MINUTES",
         "ENABLE_TEST_ROUTES",
-        "FEATURE_FLAGS_FILE"
+        "FEATURE_FLAGS_FILE",
+        "FAN_ID_REVIEW_SECONDS",
+        "PAYMENT_APPROVAL_SECONDS",
+        "QR_SECRET",
+        "LOGIN_ATTEMPTS",
+        "SITE_URL",
+        "WEB_ORIGIN",
+        "ERROR_REPORTING_URL"
       ]
     },
     "start": {
@@ -46,7 +53,14 @@
         "HOLD_MINUTES",
         "ENABLE_TEST_ROUTES",
         "FEATURE_FLAGS_FILE",
-        "NODE_ENV"
+        "NODE_ENV",
+        "FAN_ID_REVIEW_SECONDS",
+        "PAYMENT_APPROVAL_SECONDS",
+        "QR_SECRET",
+        "LOGIN_ATTEMPTS",
+        "SITE_URL",
+        "WEB_ORIGIN",
+        "ERROR_REPORTING_URL"
       ]
     }
   }
